@@ -1,9 +1,9 @@
 # Feiyue-Model Development Outline
 
-> **Canonical development outline for Feiyue-Model v2.0.**
+> **Canonical development outline for Feiyue-Model v1.0.**
 > Derived from [PRD.md](./PRD.md). All future development follows this outline unless overridden by the user.
 >
-> **Last updated**: 2026-06-22 · **PRD version**: v2.0
+> **Last updated**: 2026-06-22 · **PRD version**: v1.0
 
 ---
 
@@ -14,7 +14,7 @@
 | Data catalog | `data/catalog.json` | ✅ **Exists** — 152 evidence files indexed | Maps evidence to training categories |
 | Data format spec | `data/format.md` | ⚠️ **Needs update** — v1.0 single-turn schema | Must be rewritten for multi-turn ChatML with tool calls |
 | Training extraction | `scripts/extract_training.py` | ⚠️ **Needs rewrite** — v1.0 single-turn extraction | Must produce multi-turn trajectories with tool-call blocks |
-| SFT config | `configs/unsloth_qlora.yaml` | ⚠️ **Needs update** — v1.0 params | r=16→32, seq_len=4096→8192, lr=2e-4→1e-4 |
+| SFT config | `configs/sft_config.yaml` | ⚠️ **Needs update** — v1.0 params | r=16, seq_len=4096, lr=1e-4 (PatentFlow stack) |
 | Training sample | `data/samples/train_sample.jsonl` | ❌ **Obsolete** — single-turn format | Replace with multi-turn trajectory examples |
 | GRPO config | — | ❌ **Missing** | New file: `configs/grpo.yaml` |
 | Reward scorer | — | ❌ **Missing** | New file: `scripts/reward_scorer.py` |
@@ -96,8 +96,9 @@ M0: Foundation (prerequisite for everything)
 |------|-----------|--------|
 | CUDA verification | `nvidia-smi`, `python -c "import torch; print(torch.cuda.is_available())"` | RTX 5060 must report sm_120, 8GB VRAM |
 | Python env | `uv` or `conda` | Python 3.12, PyTorch 2.12+cu128 |
-| Unsloth install | `pip install unsloth[cu128]` | Must match CUDA version |
-| TRL install | `pip install trl>=0.15` | For GRPOTrainer |
+|| BitsAndBytes | `pip install bitsandbytes>=0.45` | 4-bit NF4 quantization |
+|| TRL install | `pip install trl>=0.14` | For SFTTrainer + GRPOTrainer |
+|| PEFT install | `pip install peft>=0.14` | LoRA adapters |
 | vLLM install | `pip install vllm` | For inference serving; Windows may need WSL |
 | Hugging Face login | `huggingface-cli login` | For model download and push |
 
@@ -112,7 +113,7 @@ M0: Foundation (prerequisite for everything)
 ```bash
 Feiyue-model/
 ├── configs/
-│   ├── unsloth_sft.yaml          # ← Update from v1.0
+│   ├── sft_config.yaml          # ← Update from v1.0
 │   └── grpo.yaml                 # ← NEW
 ├── scripts/
 │   ├── extract_training.py       # ← Rewrite for multi-turn
@@ -137,17 +138,20 @@ Feiyue-model/
 
 ### M0.3: Config Files
 
-**File**: `configs/unsloth_sft.yaml` (update from v1.0)
+**File**: `configs/sft_config.yaml` (update from v1.0)
 
 ```yaml
-# Unsloth QLoRA SFT — multi-turn trajectory imitation
-model_name: "unsloth/Qwen3-8B-Instruct-bnb-4bit"
-max_seq_length: 8192
+# QLoRA SFT — multi-turn trajectory imitation
+# Stack: trl.SFTTrainer + peft + bitsandbytes (PatentFlow proven)
+model_name: "Qwen/Qwen3-4B-Instruct-2507"
+max_seq_length: 4096
 load_in_4bit: true
-dtype: null
+bnb_4bit_quant_type: "nf4"
+bnb_4bit_compute_dtype: "bfloat16"
+bnb_4bit_use_double_quant: true
 
-r: 32
-lora_alpha: 64
+r: 16
+lora_alpha: 32
 lora_dropout: 0.05
 target_modules:
   - "q_proj"
@@ -162,8 +166,8 @@ learning_rate: 1.0e-4
 lr_scheduler_type: "cosine"
 warmup_ratio: 0.1
 num_train_epochs: 3
-per_device_train_batch_size: 1
-gradient_accumulation_steps: 8
+per_device_train_batch_size: 4
+gradient_accumulation_steps: 2
 gradient_checkpointing: true
 gradient_checkpointing_kwargs:
   use_reentrant: false
@@ -178,7 +182,7 @@ dataset_kwargs:
     validation: "data/val.jsonl"
 packing: false
 
-output_dir: "./feiyue-qwen-8b-sft"
+output_dir: "./feiyue-qwen-4b-sft"
 save_strategy: "epoch"
 save_total_limit: 2
 
@@ -190,9 +194,9 @@ report_to: "none"
 
 ```yaml
 # GRPO — trajectory-level RL with verifiable rewards
-model_path: "./feiyue-qwen-8b-sft"
-max_prompt_length: 4096
-max_completion_length: 4096
+model_path: "./feiyue-qwen-4b-sft"
+max_prompt_length: 2048
+max_completion_length: 2048
 num_generations: 4
 temperature: 0.9
 learning_rate: 5.0e-6
@@ -204,7 +208,7 @@ beta: 0.001
 reward_function: "scripts/reward_scorer.py"
 environment: "feiyue_dry_run"  # provider-free, deterministic
 
-output_dir: "./feiyue-qwen-8b-grpo"
+output_dir: "./feiyue-qwen-4b-grpo"
 save_strategy: "steps"
 save_steps: 50
 logging_steps: 5
@@ -213,8 +217,8 @@ report_to: "none"
 
 ### M0 Acceptance
 
-- [ ] `nvidia-smi` shows RTX 5060 with ≥7.5GB free VRAM
-- [ ] `python -c "import torch, unsloth, trl; print('OK')"` exits 0
+- [ ] `nvidia-smi` shows RTX 5060 with ≥4GB free VRAM
+- [ ] `python -c "import torch, trl, peft, bitsandbytes; print('OK')"` exits 0
 - [ ] `huggingface-cli whoami` returns authenticated user
 - [ ] All config files pass YAML syntax check
 - [ ] All `scripts/*.py` files exist as stubs (can be empty)
@@ -454,11 +458,11 @@ This is the **only** quality mechanism that can prevent synthetic data poisoning
 
 ## M2: SFT Training — Multi-Turn Trajectory Imitation
 
-**Goal**: Produce a Qwen3-8B LoRA adapter that can execute multi-turn Hermes tool-calling trajectories. Model must produce valid tool calls, follow verification feedback, and attempt self-correction.
+**Goal**: Produce a Qwen3-4B LoRA adapter that can execute multi-turn Hermes tool-calling trajectories. Model must produce valid tool calls, follow verification feedback, and attempt self-correction.
 
 **Depends on**: M1a + M1b complete (merged dataset ready)
 
-### M2.1: Run Unsloth SFT
+### M2.1: Run SFT Training
 
 **Environment**: Serverai RTX 5060 8GB, Windows 11 Pro
 
@@ -466,14 +470,15 @@ This is the **only** quality mechanism that can prevent synthetic data poisoning
 # On Serverai
 cd C:\Users\Simon\feiyue-model
 python -c "
-from unsloth import FastLanguageModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig
 from datasets import load_dataset
 from trl import SFTTrainer
-# ... training script using configs/unsloth_sft.yaml
+# ... training script using configs/sft_config.yaml
 "
 ```
 
-Estimated: 4–6 hours, ~5.5GB VRAM.
+Estimated: 2–3 hours, ~3.5GB VRAM.
 
 ### M2.2: Training Monitoring
 
@@ -504,7 +509,7 @@ Before proceeding to GRPO, verify the model learned the basics. Run 20 hand-craf
 - [ ] Basic eval: ≥15/20 prompts produce valid tool calls
 - [ ] ≥10/20 prompts show correct multi-turn behavior (write → verify → retry)
 - [ ] Self-correction: on verification-fail prompts, model makes ≥1 retry attempt in ≥50% of cases
-- [ ] LoRA adapter saved: `./feiyue-qwen-8b-sft/adapter_model.safetensors` exists (~300MB)
+- [ ] LoRA adapter saved: `./feiyue-qwen-4b-sft/adapter_model.safetensors` exists (~150MB)
 - [ ] Adapter loads and infers without error
 
 **Phase promotion gate**: Basic eval ≥15/20. If not met, debug training data or config before proceeding to M3.
@@ -589,15 +594,15 @@ Create 50–80 such environments covering:
 ```bash
 # On Serverai
 python -c "
-from unsloth import FastLanguageModel
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+from peft import LoraConfig
 from trl import GRPOTrainer, GRPOConfig
 import yaml
 
 # Load SFT adapter
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name='./feiyue-qwen-8b-sft',
-    max_seq_length=8192,
-    load_in_4bit=True,
+model, tokenizer = load_model(
+    model_name='Qwen/Qwen3-4B-Instruct-2507',
+    adapter_path='./feiyue-qwen-4b-sft',
 )
 
 # Load GRPO config
@@ -613,11 +618,11 @@ trainer = GRPOTrainer(
     reward_funcs=[compute_reward],
 )
 trainer.train()
-trainer.save_model('./feiyue-qwen-8b-grpo')
+trainer.save_model('./feiyue-qwen-4b-grpo')
 "
 ```
 
-Estimated: 6–10 hours, ~6GB VRAM.
+Estimated: 3–5 hours, ~4.5GB VRAM.
 
 ### M3.4: Monitor GRPO Metrics
 
@@ -633,7 +638,7 @@ Track during training:
 - [ ] Final pass rate on GRPO training tasks ≥75%
 - [ ] KL divergence from SFT stayed <0.01 (model didn't collapse)
 - [ ] No OOM during training
-- [ ] GRPO adapter saved: `./feiyue-qwen-8b-grpo/adapter_model.safetensors` exists
+- [ ] GRPO adapter saved: `./feiyue-qwen-4b-grpo/adapter_model.safetensors` exists
 - [ ] On 10 held-out tasks NOT used in GRPO training: pass rate ≥60%
 - [ ] Compared to SFT-only baseline: GRPO model pass rate ≥10pp higher
 
@@ -652,14 +657,14 @@ Track during training:
 ```bash
 # Merge LoRA adapter into base model weights
 python scripts/merge_lora.py \
-    --base unsloth/Qwen3-8B-Instruct-bnb-4bit \
-    --adapter ./feiyue-qwen-8b-grpo \
-    --output ./feiyue-qwen-8b-merged
+    --base Qwen/Qwen3-4B-Instruct-2507 \
+    --adapter ./feiyue-qwen-4b-grpo \
+    --output ./feiyue-qwen-4b-merged
 
 # Convert to GGUF (for llama.cpp fallback)
 python scripts/convert_to_gguf.py \
-    --model ./feiyue-qwen-8b-merged \
-    --output ./feiyue-qwen-8b-grpo.Q4_K_M.gguf \
+    --model ./feiyue-qwen-4b-merged \
+    --output ./feiyue-qwen-4b-grpo.Q4_K_M.gguf \
     --quantization Q4_K_M
 ```
 
@@ -668,9 +673,9 @@ python scripts/convert_to_gguf.py \
 ```bash
 # Primary: vLLM with LoRA adapter
 python -m vllm.entrypoints.openai.api_server \
-    --model unsloth/Qwen3-8B-Instruct-bnb-4bit \
+    --model Qwen/Qwen3-4B-Instruct-2507 \
     --enable-lora \
-    --lora-modules feiyue-worker=./feiyue-qwen-8b-grpo \
+    --lora-modules feiyue-worker=./feiyue-qwen-4b-grpo \
     --max-model-len 8192 \
     --gpu-memory-utilization 0.85 \
     --port 8000
@@ -683,7 +688,7 @@ If vLLM fails to build on Windows:
 ```bash
 # llama.cpp with GGUF
 ./llama-server \
-    -m ./feiyue-qwen-8b-grpo.Q4_K_M.gguf \
+    -m ./feiyue-qwen-4b-grpo.Q4_K_M.gguf \
     --host 0.0.0.0 --port 8080 \
     -c 8192 \
     -ngl 99  # Offload all layers to GPU
@@ -712,7 +717,7 @@ curl http://localhost:8000/v1/chat/completions \
 - [ ] Single-turn inference latency <2s per call
 - [ ] Smoke test: model produces valid tool-call JSON
 - [ ] Server stable for 1 hour under load (10 requests/minute)
-- [ ] VRAM usage <7GB during inference
+- [ ] VRAM usage <5GB during inference
 - [ ] Both vLLM and llama.cpp fallback tested (at least one working)
 
 **Phase promotion gate**: Smoke test passes with valid tool-call output. Server stable.
@@ -954,7 +959,7 @@ Each milestone has a **phase promotion gate** — a hard requirement that must b
 
 | Gate | Milestone | Criterion | Fail Action |
 |------|-----------|-----------|-------------|
-| G0 | M0 | `nvidia-smi` + `import torch, unsloth, trl` pass | Fix environment |
+| G0 | M0 | `nvidia-smi` + `import torch, trl, peft, bitsandbytes` pass | Fix environment |
 | G1 | M1a + M1b | ≥10,500 valid ChatML samples in train.jsonl | Debug extraction, generate more synthetic data |
 | G2 | M2 | Basic eval ≥15/20 valid tool calls | Debug training data format, adjust SFT config |
 | G3 | M3 | Held-out pass rate ≥60%, ≥10pp over SFT baseline | Increase GRPO data, adjust reward weights |
@@ -971,9 +976,9 @@ Each milestone has a **phase promotion gate** — a hard requirement that must b
 | M1a | Schema validation | `python scripts/validate_data.py data/train.jsonl` | 0 errors |
 | M1a | No data leak | `python scripts/check_leak.py data/train.jsonl data/test.jsonl` | 0 overlapping task_ids |
 | M1b | Verification gate rate | `python scripts/synth_trajectories.py --dry-run | grep "gate_pass_rate"` | ≥0.80 |
-| M2 | SFT basic eval | `python scripts/eval_sft_basic.py --checkpoint ./feiyue-qwen-8b-sft` | ≥15/20 |
+| M2 | SFT basic eval | `python scripts/eval_sft_basic.py --checkpoint ./feiyue-qwen-4b-sft` | ≥15/20 |
 | M3 | GRPO reward curve | Plot reward over steps | Monotonic increase, final > initial + 0.2 |
-| M3 | GRPO hold-out eval | `python scripts/eval_grpo_holdout.py --checkpoint ./feiyue-qwen-8b-grpo` | ≥60% pass rate |
+| M3 | GRPO hold-out eval | `python scripts/eval_grpo_holdout.py --checkpoint ./feiyue-qwen-4b-grpo` | ≥60% pass rate |
 | M4 | Server health | `curl -s http://localhost:8000/health` | HTTP 200 |
 | M4 | Latency p95 | `python scripts/bench_latency.py --requests 100` | <2s |
 | M5 | A/B pass rate | `python scripts/ab_eval.py` results | ≥80% OR ≤5pp gap |
@@ -1002,9 +1007,9 @@ Applied at every commit. Enforced via pre-commit or CI.
 
 Specific tasks for M0:
 1. SSH into Serverai, verify CUDA/PyTorch/VRAM
-2. Install Unsloth, TRL, vLLM, Hugging Face CLI
+2. Install bitsandbytes, TRL, PEFT, vLLM, Hugging Face CLI
 3. Create repo directory structure on Serverai
-4. Write updated `configs/unsloth_sft.yaml`
+4. Write updated `configs/sft_config.yaml`
 5. Write `configs/grpo.yaml`
 6. Rewrite `data/format.md` for multi-turn ChatML
 7. Create stub files for all new scripts
@@ -1014,4 +1019,4 @@ After M0 is verified, M1a and M1b can start **in parallel**.
 
 ---
 
-> **This outline is canonical for Feiyue-Model v2.0 development. All implementation work follows the milestones, dependencies, acceptance gates, and quality standards defined here unless explicitly overridden by the user.**
+> **This outline is canonical for Feiyue-Model v1.0 development. All implementation work follows the milestones, dependencies, acceptance gates, and quality standards defined here unless explicitly overridden by the user.**
