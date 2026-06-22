@@ -1,0 +1,17 @@
+# Training outputs (large, regeneratable)
+data/train.jsonl
+data/val.jsonl
+
+# Python
+__pycache__/
+*.pyc
+
+# Models
+*.gguf
+*.bin
+*.safetensors
+feiyue-qwen-8b-worker/
+
+# OS
+.DS_Store
+Thumbs.db

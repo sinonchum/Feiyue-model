@@ -1,0 +1,649 @@
+{
+  "total_files": 152,
+  "categories": {
+    "asset-reuse": [
+      {
+        "run_id": "wave10-2-asset-reuse-smoke-20260615",
+        "size": 1640
+      },
+      {
+        "run_id": "wave5-1-asset-reuse-smoke-20260614",
+        "size": 1626
+      },
+      {
+        "run_id": "wave5-teacher-reduction-promoted-lesson-reuse-smoke-20260614",
+        "size": 1761
+      },
+      {
+        "run_id": "wave5-teacher-reduction-promoted-lesson-reuse-smoke-v2-20260614",
+        "size": 1793
+      }
+    ],
+    "creative-e2e": [
+      {
+        "run_id": "wave5-5-creative-e2e-smoke-20260614",
+        "size": 8721
+      }
+    ],
+    "longitudinal-mini-programs": [
+      {
+        "run_id": "longitudinal-mini-program-20260614",
+        "size": 1562
+      },
+      {
+        "run_id": "wave10-1-longitudinal-mini-program-20260615",
+        "size": 1571
+      }
+    ],
+    "merge-readiness": [
+      {
+        "run_id": "wave7-7d-pr3-merge-readiness-evidence-only",
+        "size": 1519
+      },
+      {
+        "run_id": "wave8-8e-pr3-nondraft-merge-readiness-refresh",
+        "size": 1008
+      }
+    ],
+    "multi-student-workflows": [
+      {
+        "run_id": "real-repo-5c-one-real-one-fake-dry-run",
+        "size": 1793
+      },
+      {
+        "run_id": "real-repo-5d-all-real-multi-student-dry-run",
+        "size": 1793
+      },
+      {
+        "run_id": "real-repo-7a-true-multi-student-feature-dry-run",
+        "size": 1846
+      }
+    ],
+    "multi-worker-workflows": [
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614",
+        "size": 2954
+      },
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614-v2",
+        "size": 4952
+      },
+      {
+        "run_id": "live-b-real-teacher-retry-smoke-20260614",
+        "size": 8873
+      },
+      {
+        "run_id": "real-repo-3a-fake-mw-dry-run-v2",
+        "size": 5770
+      },
+      {
+        "run_id": "real-repo-3b-real-single-worker-dry-run",
+        "size": 6498
+      },
+      {
+        "run_id": "real-repo-3c-real-teacher-retry-dry-run",
+        "size": 3825
+      },
+      {
+        "run_id": "real-repo-3c-real-teacher-retry-dry-run-v2",
+        "size": 8992
+      },
+      {
+        "run_id": "real-repo-4a-productized-teacher-retry-dry-run",
+        "size": 9019
+      },
+      {
+        "run_id": "wave14-real-env-1to4-20260615",
+        "size": 5062
+      },
+      {
+        "run_id": "wave5-3-real-multi-worker-smoke-20260614",
+        "size": 4844
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-1-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-2-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-3-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-4-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-5-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-6-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-7-20260614",
+        "size": 8947
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-1-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-2-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-3-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-4-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-5-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-6-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-7-20260614",
+        "size": 5472
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-dry-run-20260614",
+        "size": 4961
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-1-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-2-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-3-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-4-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-5-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-6-20260614",
+        "size": 4977
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-1-20260614",
+        "size": 5169
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-2-20260614",
+        "size": 5169
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-3-20260614",
+        "size": 5169
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-4-20260614",
+        "size": 5169
+      }
+    ],
+    "real-multi-worker-runs": [
+      {
+        "run_id": "wave14-real-env-1to4-20260615",
+        "size": 6690
+      },
+      {
+        "run_id": "wave5-3-real-multi-worker-smoke-20260614",
+        "size": 6426
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-1-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-2-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-3-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-4-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-5-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-6-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-7-20260614",
+        "size": 10887
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-1-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-2-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-3-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-4-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-5-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-6-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-7-20260614",
+        "size": 7189
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-dry-run-20260614",
+        "size": 6584
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-1-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-2-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-3-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-4-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-5-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-6-20260614",
+        "size": 6620
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-1-20260614",
+        "size": 6869
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-2-20260614",
+        "size": 6870
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-3-20260614",
+        "size": 6870
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-4-20260614",
+        "size": 6870
+      }
+    ],
+    "semantic-reviews": [
+      {
+        "run_id": "wave7-7c-pr3-semantic-safety-review",
+        "size": 397
+      }
+    ],
+    "wave14-closure": [
+      {
+        "run_id": "wave14-closure-20260615",
+        "size": 2400
+      }
+    ],
+    "wave9-capability-ingestions": [
+      {
+        "run_id": "wave9-10-pr4-capability-ingestion",
+        "size": 634
+      }
+    ],
+    "wave9-draft-prs": [
+      {
+        "run_id": "wave9-8-draft-pr",
+        "size": 1208
+      }
+    ],
+    "wave9-local-branch-commits": [
+      {
+        "run_id": "wave9-7-local-branch-commit",
+        "size": 1318
+      }
+    ],
+    "wave9-local-branch-materializations": [
+      {
+        "run_id": "wave9-6-local-branch-materialization",
+        "size": 1250
+      }
+    ],
+    "wave9-post-merge-handoffs": [
+      {
+        "run_id": "wave9-15-pr4-post-merge-no-deploy-handoff",
+        "size": 657
+      }
+    ],
+    "wave9-pr-reviews": [
+      {
+        "run_id": "wave9-9-pr4-semantic-review",
+        "size": 595
+      }
+    ],
+    "wave9-real-multi-worker-runs": [
+      {
+        "run_id": "wave9-4-real-multi-worker-dry-run",
+        "size": 1979
+      }
+    ],
+    "workflow-smokes": [
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614",
+        "size": 2044
+      },
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614-v2",
+        "size": 2333
+      },
+      {
+        "run_id": "live-b-real-teacher-retry-smoke-20260614",
+        "size": 4395
+      },
+      {
+        "run_id": "real-repo-3a-fake-mw-dry-run-v2",
+        "size": 2845
+      },
+      {
+        "run_id": "real-repo-3b-real-single-worker-dry-run",
+        "size": 3537
+      },
+      {
+        "run_id": "real-repo-3c-real-teacher-retry-dry-run",
+        "size": 2860
+      },
+      {
+        "run_id": "real-repo-3c-real-teacher-retry-dry-run-v2",
+        "size": 4468
+      },
+      {
+        "run_id": "real-repo-4a-productized-teacher-retry-dry-run",
+        "size": 4474
+      },
+      {
+        "run_id": "wave14-real-env-1to4-20260615",
+        "size": 2382
+      },
+      {
+        "run_id": "wave4-2b-real-profile-workflow-deepseek-flash-round1",
+        "size": 3452
+      },
+      {
+        "run_id": "wave4-2c-real-teacher-escalation-deepseek-flash-gpt55-round1",
+        "size": 10795
+      },
+      {
+        "run_id": "wave4-3a-productized-dry-run-smoke",
+        "size": 2326
+      },
+      {
+        "run_id": "wave4-3b-3-low-risk-real-project-promotion-smoke",
+        "size": 2905
+      },
+      {
+        "run_id": "wave4-3b-3-low-risk-real-project-promotion-smoke-v3",
+        "size": 2862
+      },
+      {
+        "run_id": "wave4-3c-productized-approval-cli-smoke",
+        "size": 3144
+      },
+      {
+        "run_id": "wave4-3c-productized-approval-cli-smoke-v2",
+        "size": 2824
+      },
+      {
+        "run_id": "wave4-5b-approved-multi-worker-dry-run-smoke",
+        "size": 2224
+      },
+      {
+        "run_id": "wave4-5c-productized-dry-run-approval-smoke",
+        "size": 2223
+      },
+      {
+        "run_id": "wave5-3-real-multi-worker-smoke-20260614",
+        "size": 2277
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-1-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-2-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-3-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-4-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-5-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-6-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-controlled-teacher-retry-sample-7-20260614",
+        "size": 4390
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-1-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-2-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-3-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-4-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-5-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-6-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-promoted-lesson-aware-workflow-sample-7-20260614",
+        "size": 2578
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-dry-run-20260614",
+        "size": 2335
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-1-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-2-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-3-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-4-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-5-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-semi-sample-6-20260614",
+        "size": 2339
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-1-20260614",
+        "size": 2428
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-2-20260614",
+        "size": 2428
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-3-20260614",
+        "size": 2428
+      },
+      {
+        "run_id": "wave5-teacher-reduction-after-no-teacher-sample-4-20260614",
+        "size": 2428
+      }
+    ],
+    "provider-runs": [
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614-provider",
+        "size": 2529
+      },
+      {
+        "run_id": "live-ab-real-worker-dry-run-smoke-20260614-v2-provider",
+        "size": 1162
+      },
+      {
+        "run_id": "live-b-real-teacher-retry-smoke-20260614-teacher-provider",
+        "size": 1020
+      },
+      {
+        "run_id": "live-b-real-teacher-retry-smoke-20260614-worker-initial-provider",
+        "size": 1110
+      },
+      {
+        "run_id": "live-b-real-teacher-retry-smoke-20260614-worker-retry-provider",
+        "size": 1101
+      },
+      {
+        "run_id": "provider-real-repo-3b-real-single-worker",
+        "size": 2005
+      },
+      {
+        "run_id": "provider-real-repo-3c-teacher-guidance",
+        "size": 1017
+      },
+      {
+        "run_id": "provider-real-repo-3c-teacher-guidance-v2",
+        "size": 829
+      },
+      {
+        "run_id": "provider-real-repo-3c-worker-initial",
+        "size": 2134
+      },
+      {
+        "run_id": "provider-real-repo-3c-worker-initial-v2",
+        "size": 913
+      },
+      {
+        "run_id": "provider-real-repo-3c-worker-retry",
+        "size": 1809
+      },
+      {
+        "run_id": "provider-real-repo-3c-worker-retry-v2",
+        "size": 903
+      },
+      {
+        "run_id": "provider-real-repo-4a-teacher-guidance",
+        "size": 826
+      },
+      {
+        "run_id": "provider-real-repo-4a-worker-initial",
+        "size": 910
+      },
+      {
+        "run_id": "provider-real-repo-4a-worker-retry",
+        "size": 900
+      },
+      {
+        "run_id": "provider-real-repo-5c-one-real-impl",
+        "size": 893
+      },
+      {
+        "run_id": "provider-real-repo-5d-mid-impl",
+        "size": 874
+      },
+      {
+        "run_id": "provider-real-repo-5d-strong-docs",
+        "size": 881
+      },
+      {
+        "run_id": "provider.7a.mid.impl",
+        "size": 2326
+      },
+      {
+        "run_id": "provider.7a.strong.tests",
+        "size": 2700
+      },
+      {
+        "run_id": "wave14-real-env-1to4-20260615-provider-worker",
+        "size": 1397
+      },
+      {
+        "run_id": "wave3-default-profile-smoke",
+        "size": 846
+      },
+      {
+        "run_id": "wave5-real-mw-hermes-dry-run-20260614-provider",
+        "size": 1023
+      },
+      {
+        "run_id": "wave9-4-impl-feiyue-mid-deepseek-pro",
+        "size": 2232
+      },
+      {
+        "run_id": "wave9-4-tests-feiyue-strong-gpt55",
+        "size": 2287
+      }
+    ]
+  }
+}
