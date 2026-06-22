@@ -1,131 +1,135 @@
-# Feiyue Training Data Format
+# Feiyue Training Data Format v2.0
 
-## Schema Specification
+## Overview
 
-Feiyue training data follows ChatML format, suitable for fine-tuning with Unsloth, Axolotl, or any ChatML-compatible framework.
+Feiyue-Model training data follows **multi-turn ChatML format** with structured tool-call blocks. This format captures the full Feiyue worker trajectory: receive TaskContract → plan → execute tool calls → verify → self-correct if needed.
 
-## ChatML Message Format
+## ChatML Multi-Turn Message Format
 
 ```json
 {
   "messages": [
-    {
-      "role": "system",
-      "content": "<system prompt describing worker role>"
-    },
-    {
-      "role": "user",
-      "content": "<TaskContract JSON or natural language task description>"
-    },
-    {
-      "role": "assistant",
-      "content": "<CandidateFileWrite JSON or structured output>"
-    }
+    {"role": "system", "content": "<system prompt>"},
+    {"role": "user", "content": "<TaskContract JSON>"},
+    {"role": "assistant", "content": "<tool_call>\n{...}\n</tool_call>"},
+    {"role": "tool", "content": "{...}"},
+    {"role": "assistant", "content": "<tool_call>\n{...}\n</tool_call>"},
+    {"role": "tool", "content": "{...}"},
+    {"role": "assistant", "content": "Task complete. Verification passed."}
   ],
   "metadata": {
-    "task_id": "unique-task-identifier",
-    "status": "verified|needs_teacher|blocked",
+    "task_id": "unique-id",
+    "status": "verified|failed|needs_teacher",
     "difficulty": "easy|medium|hard",
-    "domain": "code|docs|tests|config",
+    "domain": "code|docs|tests|config|multi-file",
+    "tools_used": ["file_write", "run_tests"],
     "teacher_used": false,
+    "attempts": 1,
     "verification_passed": true
   }
 }
 ```
 
-## System Prompt Template
+## System Prompt
 
 ```
-You are a Feiyue worker agent operating inside a Hermes runtime. You receive TaskContracts from a strong model (teacher) and produce CandidateFileWrite outputs.
+You are a Feiyue worker agent operating inside a Hermes runtime. You receive
+TaskContracts from a strong model (teacher) and execute them using the tools
+available in the Hermes environment.
 
 RULES:
-1. Your response must be valid JSON matching the CandidateFileWrite schema
-2. Output ONLY the JSON object — no markdown fences, no preamble
-3. The 'path' field MUST be relative to the project root
-4. The 'content' field contains the complete file contents
-5. If you receive teacher guidance about a previous failure, incorporate it exactly
-6. Every file write must match the verification criteria in the TaskContract
+1. Plan before acting: think about what tools you need and in what order
+2. Tool calls must be valid JSON in <tool_call> blocks
+3. After each tool call, verify the result before proceeding
+4. If verification fails, analyze the error and retry with corrections
+5. Minimize unnecessary tool calls — each call should have a clear purpose
+6. All file paths must be relative to the project root
+7. Never output secrets, API keys, or absolute paths
 
-CandidateFileWrite schema:
-{
-  "writes": [
-    {
-      "path": "relative/path/to/file.py",
-      "content": "complete file contents here"
-    }
-  ]
-}
+Available tools: file_read, file_write, list_directory, apply_patch,
+run_tests, run_linter, search_files, shell_exec, update_plan
 ```
 
-## User Message Format
+## User Message (TaskContract) Format
 
 ```json
 {
-  "task_id": "unique-id",
-  "description": "Natural language description of what to do",
-  "context": "Relevant project context, file snippets, or constraints",
-  "verification_command": "pytest tests/test_x.py -q",
-  "allowed_files": ["path/to/edit.py"],
-  "teacher_guidance": "Optional: guidance from teacher after failed attempt",
-  "attempt_index": 1
+  "task_id": "real-repo-3c",
+  "description": "Update marker file to pass verification",
+  "verification_command": "grep -q EXPECTED_STRING docs/file.md",
+  "allowed_files": ["docs/file.md"],
+  "context": "The marker file needs updating...",
+  "teacher_guidance": null,
+  "attempt_index": 0
 }
 ```
 
-## Assistant Message Format
+## Tool Call Format
 
-```json
+Each tool invocation is wrapped in `<tool_call>` tags:
+
+```
+<tool_call>
 {
-  "writes": [
-    {
-      "path": "relative/path/to/file.py",
-      "content": "# Fixed implementation\n\ndef example():\n    return True\n"
-    }
-  ]
+  "name": "file_write",
+  "arguments": {
+    "path": "docs/file.md",
+    "content": "# Updated file\nMARKER_STRING"
+  }
 }
+</tool_call>
 ```
 
-## Training Samples by Category
+## Tool Response Format
 
-### 1. Positive Samples (verification_passed: true)
+```
+<tool_response>
+{
+  "success": true,
+  "path": "docs/file.md",
+  "bytes_written": 42
+}
+</tool_response>
+```
+
+## Training Sample Categories
+
+### 1. Positive Trajectories (verification_passed: true)
 - Worker correctly understood TaskContract
-- Produced valid CandidateFileWrite
-- Verification command passed
-- **Count from Feiyue**: ~60–80 samples
+- Produced valid tool call sequence
+- Verification command passed on first attempt
+- Source: workflow-smokes, real-multi-worker-runs with exit_code=0
 
-### 2. Teacher-Retry Pairs (verification_passed: true after retry)
-- Worker initially failed → Teacher provided guidance → Worker retried successfully
-- Training objective: learn to incorporate teacher feedback
-- **Count from Feiyue**: ~30 pairs
-- **Format**: Two consecutive message pairs in the same conversation
+### 2. Self-Correction Trajectories (verification_passed: true, attempts > 1)
+- Worker failed initial attempt → analyzed error → retried → passed
+- These teach the model self-correction behavior
+- Source: teacher-retry pairs from multi-worker-workflows
 
-### 3. Negative Samples (verification_passed: false)
-- Used for DPO/contrastive training (future phase)
-- NOT used for initial SFT
+### 3. Failed Trajectories (verification_passed: false)
+- Used for DPO/GRPO contrastive training (rejected samples)
+- Source: provider-runs with exit_code≠0
+- NOT used in SFT phase
 
 ## Data Extraction
 
-Run the extraction script to generate training data from a Feiyue checkout:
-
 ```bash
-python scripts/extract_training.py /path/to/Feiyue-checkout --output data/train.jsonl
+# Extract from Feiyue evidence files
+python scripts/extract_training.py /path/to/Feiyue --output data/raw/
+
+# Generate synthetic domain trajectories
+python scripts/synth_trajectories.py --feiyue-root /path/to/Feiyue --output data/synthetic/
+
+# Merge all sources, validate, split
+python scripts/prepare_data.py --all --output data/
 ```
 
-Options:
-- `--format chatml|alpaca|sharegpt` — Output format (default: chatml)
-- `--split 0.8` — Train/val split ratio
-- `--include-retries` — Include teacher-retry pairs
-- `--max-samples 200` — Cap on output samples
+## Validation Rules
 
-## Validation
-
-After extraction, validate output against the schema:
-
-```bash
-python scripts/validate_training_data.py data/train.jsonl
-```
-
-Checks:
-- All messages have valid role/content
-- All assistant responses parse as valid CandidateFileWrite
-- All paths are relative (no absolute paths)
-- No API keys or secrets leaked in content
+1. All messages have valid `role` in {system, user, assistant, tool}
+2. All assistant tool-call messages parse as valid JSON with `name` + `arguments`
+3. All tool messages parse as valid JSON
+4. No absolute paths in any message content
+5. No API keys or secrets in any message
+6. At least one tool call per trajectory (non-trivial samples only)
+7. Final message role is `assistant` (trajectory ends with model output)
+8. Metadata fields present and valid

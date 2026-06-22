@@ -1,423 +1,381 @@
-import os
+#!/usr/bin/env python3
+"""
+M1c: Merge, validate, deduplicate, and split all training data sources.
+
+Inputs:
+  - data/raw/extracted_train.jsonl    (M1a: Feiyue evidence)
+  - data/raw/extracted_val.jsonl
+  - data/raw/extracted_test.jsonl
+  - data/synthetic/synth_trajectories.jsonl  (M1b: teacher-generated)
+  - data/fixtures/fixture_samples.jsonl      (test fixture extraction)
+
+Outputs:
+  - data/train.jsonl    (Final SFT training set)
+  - data/val.jsonl      (Final SFT validation set)
+  - data/test.jsonl     (Held-out evaluation set)
+  - data/prepare_report.json
+
+Usage:
+    # Run with all sources
+    python scripts/prepare_data.py --all
+
+    # Run with only extracted data
+    python scripts/prepare_data.py --extracted data/raw/
+
+    # Preview without writing
+    python scripts/prepare_data.py --all --dry-run
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
 import json
-import re
+import os
 import random
-import glob
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
-# --- Configuration ---
-FIXTURE_SRC_PATH = r"C:\Users\simon\Documents\HermesAnywhere\Feiyue\packages\feiyue-core\tests\*.py"
-OUTPUT_DIR = r"C:\Users\simon\Feiyue-model\data"
-TRAIN_FILE = os.path.join(OUTPUT_DIR, "train.jsonl")
-VAL_FILE = os.path.join(OUTPUT_DIR, "val.jsonl")
 
-SYSTEM_MESSAGE = "You are a local coding agent. Given a TaskContract, produce structured tool calls in JSON format."
-SYNTHETIC_PROBLEM_COUNT = 50
-SPLIT_RATIO = (0.8, 0.1, 0.1)  # Train, Validation, Test
+# ── Constants ──────────────────────────────────────────────────────────
 
-# --- Synthetic Data Definitions ---
-SYNTHETIC_PROBLEMS = [
-    {
-        "name": "add_numbers",
-        "description": "a function `add_numbers(a, b)` that returns the sum of two numbers.",
-        "code": """def add_numbers(a, b):
-    \"\"\"Returns the sum of two numbers.\"\"\"
-    return a + b
-
-# Test cases
-assert add_numbers(5, 3) == 8
-assert add_numbers(-1, 1) == 0
-assert add_numbers(0, 0) == 0
-assert add_numbers(1.5, 2.5) == 4.0"""
-    },
-    {
-        "name": "is_palindrome",
-        "description": "a function `is_palindrome(s)` that checks if a string is a palindrome (reads the same forwards and backwards), ignoring case and non-alphanumeric characters.",
-        "code": """import re
-
-def is_palindrome(s):
-    \"\"\"Checks if a string is a palindrome, ignoring case and non-alphanumeric characters.\"\"\"
-    normalized = re.sub(r'[^a-z0-9]', '', s.lower())
-    return normalized == normalized[::-1]
-
-# Test cases
-assert is_palindrome("A man, a plan, a canal: Panama") is True
-assert is_palindrome("race a car") is False
-assert is_palindrome("Was it a car or a cat I saw?") is True
-assert is_palindrome("hello") is False"""
-    },
-    {
-        "name": "factorial",
-        "description": "a recursive function `factorial(n)` to calculate the factorial of a non-negative integer.",
-        "code": """def factorial(n):
-    \"\"\"Calculates the factorial of a non-negative integer recursively.\"\"\"
-    if not isinstance(n, int) or n < 0:
-        raise ValueError("Input must be a non-negative integer.")
-    if n == 0:
-        return 1
-    return n * factorial(n - 1)
-
-# Test cases
-assert factorial(0) == 1
-assert factorial(1) == 1
-assert factorial(5) == 120
-assert factorial(7) == 5040"""
-    },
-    {
-        "name": "find_max",
-        "description": "a function `find_max(numbers)` that finds the maximum number in a list of numbers.",
-        "code": """def find_max(numbers):
-    \"\"\"Finds the maximum number in a list. Returns None if the list is empty.\"\"\"
-    if not numbers:
-        return None
-    max_val = numbers[0]
-    for number in numbers:
-        if number > max_val:
-            max_val = number
-    return max_val
-
-# Test cases
-assert find_max([1, 2, 3, 4, 5]) == 5
-assert find_max([-1, -5, -3]) == -1
-assert find_max([100, 20, 80]) == 100
-assert find_max([]) is None"""
-    },
-    {
-        "name": "reverse_string",
-        "description": "a function `reverse_string(s)` that returns the reversed version of a string.",
-        "code": """def reverse_string(s):
-    \"\"\"Reverses a given string.\"\"\"
-    return s[::-1]
-
-# Test cases
-assert reverse_string("hello") == "olleh"
-assert reverse_string("Python") == "nohtyP"
-assert reverse_string("") == ""
-assert reverse_string("a") == "a" """
-    },
-    {
-        "name": "fibonacci",
-        "description": "a function `fibonacci(n)` that returns the n-th number in the Fibonacci sequence (starting with 0 and 1).",
-        "code": """def fibonacci(n):
-    \"\"\"Returns the n-th Fibonacci number.\"\"\"
-    if n < 0:
-        raise ValueError("Input must be a non-negative integer.")
-    a, b = 0, 1
-    for _ in range(n):
-        a, b = b, a + b
-    return a
-
-# Test cases
-assert fibonacci(0) == 0
-assert fibonacci(1) == 1
-assert fibonacci(2) == 1
-assert fibonacci(10) == 55"""
-    },
-    {
-        "name": "is_prime",
-        "description": "a function `is_prime(num)` that checks if a number is a prime number.",
-        "code": """def is_prime(num):
-    \"\"\"Checks if a number is prime.\"\"\"
-    if num <= 1:
-        return False
-    if num <= 3:
-        return True
-    if num % 2 == 0 or num % 3 == 0:
-        return False
-    i = 5
-    while i * i <= num:
-        if num % i == 0 or num % (i + 2) == 0:
-            return False
-        i += 6
-    return True
-
-# Test cases
-assert is_prime(2) is True
-assert is_prime(3) is True
-assert is_prime(4) is False
-assert is_prime(29) is True
-assert is_prime(100) is False"""
-    },
-    {
-        "name": "remove_duplicates",
-        "description": "a function `remove_duplicates(items)` that removes duplicate elements from a list while preserving the original order.",
-        "code": """def remove_duplicates(items):
-    \"\"\"Removes duplicates from a list, preserving order.\"\"\"
-    seen = set()
-    result = []
-    for item in items:
-        if item not in seen:
-            seen.add(item)
-            result.append(item)
-    return result
-
-# Test cases
-assert remove_duplicates([1, 2, 2, 3, 1, 4]) == [1, 2, 3, 4]
-assert remove_duplicates(['a', 'b', 'a', 'c']) == ['a', 'b', 'c']
-assert remove_duplicates([]) == []"""
-    },
-    {
-        "name": "bubble_sort",
-        "description": "a function `bubble_sort(arr)` that sorts a list of numbers in ascending order using the bubble sort algorithm.",
-        "code": """def bubble_sort(arr):
-    \"\"\"Sorts a list using the bubble sort algorithm.\"\"\"
-    n = len(arr)
-    for i in range(n):
-        swapped = False
-        for j in range(0, n-i-1):
-            if arr[j] > arr[j+1]:
-                arr[j], arr[j+1] = arr[j+1], arr[j]
-                swapped = True
-        if not swapped:
-            break
-    return arr
-
-# Test cases
-assert bubble_sort([64, 34, 25, 12, 22, 11, 90]) == [11, 12, 22, 25, 34, 64, 90]
-assert bubble_sort([5, 1, 4, 2, 8]) == [1, 2, 4, 5, 8]
-assert bubble_sort([]) == []"""
-    },
-    {
-        "name": "count_words",
-        "description": "a function `count_words(text)` that counts the frequency of each word in a given text.",
-        "code": """import re
-from collections import Counter
-
-def count_words(text):
-    \"\"\"Counts the frequency of each word in a text.\"\"\"
-    words = re.findall(r'\\b\\w+\\b', text.lower())
-    return Counter(words)
-
-# Test cases
-text = "hello world hello"
-counts = count_words(text)
-assert counts['hello'] == 2
-assert counts['world'] == 1
-assert count_words("A test, a simple test.") == Counter({'a': 2, 'test': 2, 'simple': 1})"""
-    }
+VALID_ROLES = {"system", "user", "assistant", "tool"}
+REQUIRED_METADATA_FIELDS = {"task_id", "status", "difficulty", "domain", "tools_used", "verification_passed"}
+SECRET_PATTERNS = [
+    r'sk-[a-zA-Z0-9]{20,}',                    # OpenAI keys
+    r'ghp_[a-zA-Z0-9]{36}',                    # GitHub tokens
+    r'AIza[0-9A-Za-z\-_]{35}',                 # Google API keys
+    r'[a-zA-Z0-9+/]{40,}={0,2}',               # Base64-ish secrets (high false positive, warn only)
+]
+PATH_PATTERNS = [
+    r'/Users/\S+',       # macOS
+    r'C:\\Users\\\S+',    # Windows
+    r'/home/\S+',         # Linux
 ]
 
-def py_dict_str_to_json_str(py_str):
-    """
-    Converts a Python dictionary string literal to a valid JSON string.
-    This is a brittle conversion, relying on regex and string replacement
-    as per the problem constraints (no `ast` module).
-    """
-    s = py_str.strip()
-    
-    # Replace triple-quoted strings with JSON-escaped strings
-    s = re.sub(r"'''([\s\S]*?)'''", lambda m: json.dumps(m.group(1)), s)
-    s = re.sub(r'"""([\s\S]*?)"""', lambda m: json.dumps(m.group(1)), s)
 
-    # Replace Python boolean/None keywords with JSON equivalents (whole words only)
-    s = re.sub(r'\bTrue\b', 'true', s)
-    s = re.sub(r'\bFalse\b', 'false', s)
-    s = re.sub(r'\bNone\b', 'null', s)
+# ── Helpers ────────────────────────────────────────────────────────────
 
-    # Replace single quotes with double quotes, avoiding escaped single quotes
-    # This is tricky. A simpler approach for dicts is to quote all keys and string values.
-    # Let's try a different, more robust replacement for dicts.
-    # First, replace all single quotes with double quotes.
-    # This is risky if a string contains a double quote. Assume fixtures are clean.
-    s = s.replace("'", '"')
-
-    # Remove trailing commas before a closing brace or bracket
-    s = re.sub(r',\s*([\}\]])', r'\1', s)
-    
-    return s
-
-def find_and_pair_literals(content):
-    """
-    Finds variable assignments to dict/list literals and pairs them up.
-    Assumes a naming convention like `..._contract` and `..._expected...`.
-    Uses a robust brace-counting method to find literal boundaries.
-    """
-    assignments = {}
-    # Regex to find the start of an assignment: var_name = { or var_name = [
-    for match in re.finditer(r'(\w+)\s*=\s*([\{\[])', content):
-        var_name = match.group(1)
-        open_char = match.group(2)
-        close_char = '}' if open_char == '{' else ']'
-        
-        search_start_pos = match.end(0)
-        level = 1
-        
-        for i in range(search_start_pos, len(content)):
-            char = content[i]
-            if char == open_char:
-                level += 1
-            elif char == close_char:
-                level -= 1
-            
-            if level == 0:
-                literal_content = content[match.start(2):i+1]
-                assignments[var_name] = literal_content
-                break
-    
-    # Pair up contracts and expected outputs
-    pairs = []
-    processed_contracts = set()
-    for name, literal in assignments.items():
-        if 'contract' in name and name not in processed_contracts:
-            base_name = name.replace('task_contract', '').strip('_')
-            # Find a matching expected output
-            for expected_name in assignments:
-                if 'expected' in expected_name and base_name in expected_name:
-                    pairs.append((assignments[name], assignments[expected_name]))
-                    processed_contracts.add(name)
-                    break
-    return pairs
-
-def process_fixture_files():
-    """Reads test fixture files, extracts data, and converts to ChatML format."""
+def load_jsonl(path: Path) -> list[dict]:
+    """Load a JSONL file, returning list of dicts."""
     samples = []
-    fixture_files = glob.glob(FIXTURE_SRC_PATH)
-    
-    for file_path in fixture_files:
-        try:
-            with open(file_path, 'r', encoding='utf-8') as f:
-                content = f.read()
-        except Exception as e:
-            print(f"Warning: Could not read file {file_path}: {e}")
-            continue
-
-        literal_pairs = find_and_pair_literals(content)
-        
-        for contract_str, expected_str in literal_pairs:
+    if not path.exists():
+        return samples
+    with open(path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
             try:
-                # Convert Python dict string to JSON string
-                user_content_json_str = py_dict_str_to_json_str(contract_str)
-                assistant_content_json_str = py_dict_str_to_json_str(expected_str)
-                
-                # Parse and re-dump to ensure valid, formatted JSON
-                user_json = json.loads(user_content_json_str)
-                assistant_json = json.loads(assistant_content_json_str)
-                
-                user_content = json.dumps(user_json, indent=2)
-                assistant_content = json.dumps(assistant_json, indent=2)
-
-                sample = {
-                    "messages": [
-                        {"role": "system", "content": SYSTEM_MESSAGE},
-                        {"role": "user", "content": user_content},
-                        {"role": "assistant", "content": assistant_content}
-                    ]
-                }
-                samples.append(sample)
-            except Exception as e:
-                # print(f"Warning: Failed to process a literal pair in {file_path}: {e}")
-                pass # Suppress warnings for cleaner output
-                
+                samples.append(json.loads(line))
+            except json.JSONDecodeError:
+                pass
     return samples
 
-def generate_synthetic_data():
-    """Generates synthetic coding problems in ChatML format."""
-    samples = []
-    
-    # Ensure we have enough unique problems
-    problems_to_generate = (SYNTHETIC_PROBLEMS * (SYNTHETIC_PROBLEM_COUNT // len(SYNTHETIC_PROBLEMS) + 1))[:SYNTHETIC_PROBLEM_COUNT]
-    
-    for i, problem in enumerate(problems_to_generate):
-        # Add slight variations to make problems more unique if desired
-        func_name = problem['name']
-        if i >= len(SYNTHETIC_PROBLEMS):
-            func_name = f"{problem['name']}_{i // len(SYNTHETIC_PROBLEMS)}"
-            
-        user_prompt = f"Write a Python function that implements {problem['description']}\n" \
-                      f"The function should be named `{func_name}`. " \
-                      "Include several test cases using `assert` to verify its correctness."
 
-        # The system message is more for tool use, but we use it as required.
-        # A more general system message like "You are a helpful coding assistant."
-        # might be better, but we stick to the requirements.
-        sample = {
-            "messages": [
-                {"role": "system", "content": SYSTEM_MESSAGE},
-                {"role": "user", "content": user_prompt},
-                {"role": "assistant", "content": problem['code'].replace(problem['name'], func_name, 1)}
-            ]
-        }
-        samples.append(sample)
-        
-    return samples
+def sha256(sample: dict) -> str:
+    """Deterministic content hash for deduplication."""
+    content = json.dumps(sample.get("messages", []), sort_keys=True, ensure_ascii=False)
+    return hashlib.sha256(content.encode()).hexdigest()
 
-def validate_sample(sample):
-    """Checks if a sample conforms to the required ChatML structure."""
-    if not isinstance(sample, dict) or "messages" not in sample:
-        return False
-    messages = sample["messages"]
-    if not isinstance(messages, list) or len(messages) != 3:
-        return False
-    
-    roles = [msg.get("role") for msg in messages]
-    if roles != ["system", "user", "assistant"]:
-        return False
-        
-    for msg in messages:
-        if not isinstance(msg.get("content"), str) or not msg["content"]:
-            return False
-            
-    return True
+
+# ── Validation ─────────────────────────────────────────────────────────
+
+def validate_sample(sample: dict, idx: int) -> list[str]:
+    """Return list of validation error messages (empty = valid)."""
+    errors = []
+
+    # Structural
+    if "messages" not in sample:
+        errors.append(f"[{idx}] missing 'messages' key")
+        return errors
+    msgs = sample["messages"]
+    if not isinstance(msgs, list) or len(msgs) < 3:
+        errors.append(f"[{idx}] messages must be list with ≥3 entries, got {len(msgs)}")
+        return errors
+
+    # Role validation
+    for i, msg in enumerate(msgs):
+        role = msg.get("role", "")
+        if role not in VALID_ROLES:
+            errors.append(f"[{idx}] msg[{i}]: invalid role '{role}'")
+        content = msg.get("content", "")
+        if not content or not isinstance(content, str):
+            errors.append(f"[{idx}] msg[{i}]: missing or non-string content")
+
+    # Tool call validation: <tool_call> blocks must be valid JSON
+    full_text = "\n".join(m.get("content", "") for m in msgs)
+    tool_blocks = re.findall(r'<tool_call>\s*\n?(.*?)\n?\s*</tool_call>', full_text, re.DOTALL)
+    for block in tool_blocks:
+        try:
+            parsed = json.loads(block.strip())
+            if "name" not in parsed or "arguments" not in parsed:
+                errors.append(f"[{idx}] tool_call missing 'name' or 'arguments': {block[:80]}")
+        except json.JSONDecodeError:
+            errors.append(f"[{idx}] invalid JSON in tool_call: {block[:80]}")
+
+    # Tool response validation
+    resp_blocks = re.findall(r'<tool_response>\s*\n?(.*?)\n?\s*</tool_response>', full_text, re.DOTALL)
+    for block in resp_blocks:
+        try:
+            json.loads(block.strip())
+        except json.JSONDecodeError:
+            errors.append(f"[{idx}] invalid JSON in tool_response: {block[:80]}")
+
+    # No absolute paths
+    for pattern in PATH_PATTERNS:
+        if re.search(pattern, full_text):
+            errors.append(f"[{idx}] absolute path found matching '{pattern}'")
+
+    # No secrets
+    for pattern in SECRET_PATTERNS:
+        if re.search(pattern, full_text):
+            errors.append(f"[{idx}] potential secret found matching '{pattern}'")
+
+    # Metadata
+    meta = sample.get("metadata", {})
+    if not meta.get("task_id"):
+        errors.append(f"[{idx}] missing metadata.task_id")
+    for field in REQUIRED_METADATA_FIELDS:
+        if field not in meta:
+            errors.append(f"[{idx}] missing metadata.{field}")
+
+    # Final message must be assistant role
+    if msgs and msgs[-1]["role"] != "assistant":
+        errors.append(f"[{idx}] trajectory must end with assistant message")
+
+    return errors
+
+
+# ── Statistics ─────────────────────────────────────────────────────────
+
+def compute_stats(samples: list[dict]) -> dict:
+    """Compute aggregate statistics for a dataset split."""
+    if not samples:
+        return {"count": 0}
+
+    n = len(samples)
+    verified = sum(1 for s in samples if s["metadata"].get("verification_passed", False))
+    multi_turn = sum(1 for s in samples if s["metadata"].get("attempts", 1) > 1)
+    teacher_used = sum(1 for s in samples if s["metadata"].get("teacher_used", False))
+    avg_msgs = sum(len(s["messages"]) for s in samples) / n
+
+    difficulty = {}
+    domain = {}
+    tools = {}
+    source = {}
+    for s in samples:
+        m = s["metadata"]
+        difficulty[m["difficulty"]] = difficulty.get(m["difficulty"], 0) + 1
+        domain[m["domain"]] = domain.get(m["domain"], 0) + 1
+        for t in m["tools_used"]:
+            tools[t] = tools.get(t, 0) + 1
+        source[m.get("source", "unknown")] = source.get(m.get("source", "unknown"), 0) + 1
+
+    return {
+        "count": n,
+        "verified_rate": f"{verified}/{n} ({verified/n*100:.1f}%)",
+        "multi_turn_rate": f"{multi_turn}/{n} ({multi_turn/n*100:.1f}%)",
+        "teacher_used_rate": f"{teacher_used}/{n} ({teacher_used/n*100:.1f}%)",
+        "avg_messages": round(avg_msgs, 1),
+        "difficulty_distribution": difficulty,
+        "domain_distribution": domain,
+        "tool_usage": tools,
+        "source_distribution": source,
+    }
+
+
+# ── Main ───────────────────────────────────────────────────────────────
 
 def main():
-    """Main script execution."""
-    print("Starting data preparation for Qwen3-4B fine-tuning...")
+    parser = argparse.ArgumentParser(
+        description="M1c: Merge, validate, and split training data")
+    parser.add_argument("--all", action="store_true",
+                        help="Load from all default sources")
+    parser.add_argument("--extracted", type=Path, default=Path("data/raw"),
+                        help="Path to M1a extracted data directory")
+    parser.add_argument("--synthetic", type=Path, default=Path("data/synthetic/synth_trajectories.jsonl"),
+                        help="Path to M1b synthetic trajectories")
+    parser.add_argument("--fixtures", type=Path, default=Path("data/fixtures/fixture_samples.jsonl"),
+                        help="Path to test fixture samples")
+    parser.add_argument("--output", type=Path, default=Path("data"),
+                        help="Output directory for final datasets")
+    parser.add_argument("--split", type=float, nargs=3,
+                        default=[0.80, 0.10, 0.10],
+                        help="Train/val/test split ratios")
+    parser.add_argument("--seed", type=int, default=42,
+                        help="Random seed for shuffling and splitting")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Validate and report without writing output files")
 
-    # 1. Create output directory
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    print(f"Output directory set to: {OUTPUT_DIR}")
+    args = parser.parse_args()
 
-    # 2. Process real data from fixtures
-    print(f"Reading test fixtures from: {FIXTURE_SRC_PATH}")
-    fixture_samples = process_fixture_files()
-    
-    # 3. Generate synthetic data
-    print(f"Generating {SYNTHETIC_PROBLEM_COUNT} synthetic coding problems...")
-    synthetic_samples = generate_synthetic_data()
+    # ── Load all sources ────────────────────────────────────────────
+    all_raw: list[dict] = []
 
-    all_samples = fixture_samples + synthetic_samples
-    
-    # 4. Validate all samples
-    initial_count = len(all_samples)
-    validated_samples = [s for s in all_samples if validate_sample(s)]
-    final_count = len(validated_samples)
-    
-    # 5. Shuffle and split data
-    random.shuffle(validated_samples)
-    
-    train_end = int(len(validated_samples) * SPLIT_RATIO[0])
-    val_end = train_end + int(len(validated_samples) * SPLIT_RATIO[1])
-    
-    train_set = validated_samples[:train_end]
-    val_set = validated_samples[train_end:val_end]
-    test_set = validated_samples[val_end:] # Not written, but calculated for stats
+    sources_loaded = False
 
-    # 6. Write to JSONL files
-    print(f"Writing {len(train_set)} samples to {TRAIN_FILE}...")
-    with open(TRAIN_FILE, 'w', encoding='utf-8') as f:
-        for sample in train_set:
-            f.write(json.dumps(sample) + '\n')
+    if args.all:
+        sources_loaded = True
+        # M1a: extracted evidence trajectories
+        for fname in ["extracted_train.jsonl", "extracted_val.jsonl", "extracted_test.jsonl"]:
+            path = args.extracted / fname
+            samples = load_jsonl(path)
+            all_raw.extend(samples)
+            print(f"  Loaded {len(samples):>5} from {path}")
 
-    print(f"Writing {len(val_set)} samples to {VAL_FILE}...")
-    with open(VAL_FILE, 'w', encoding='utf-8') as f:
-        for sample in val_set:
-            f.write(json.dumps(sample) + '\n')
+        # M1b: synthetic trajectories
+        if args.synthetic.exists():
+            samples = load_jsonl(args.synthetic)
+            all_raw.extend(samples)
+            print(f"  Loaded {len(samples):>5} from {args.synthetic}")
+        else:
+            print(f"  [SKIP] {args.synthetic} not found")
 
-    # 7. Print statistics
-    print("\n--- Data Preparation Statistics ---")
-    print(f"Fixture files found: {len(glob.glob(FIXTURE_SRC_PATH))}")
-    print(f"Samples extracted from fixtures: {len(fixture_samples)}")
-    print(f"Synthetic samples generated: {len(synthetic_samples)}")
-    print("-" * 35)
-    print(f"Total samples before validation: {initial_count}")
-    print(f"Total valid samples after validation: {final_count}")
-    if initial_count != final_count:
-        print(f"  ({initial_count - final_count} invalid samples discarded)")
-    print("-" * 35)
-    print(f"Training set size: {len(train_set)} ({SPLIT_RATIO[0]*100:.0f}%)")
-    print(f"Validation set size: {len(val_set)} ({SPLIT_RATIO[1]*100:.0f}%)")
-    print(f"Test set size (not written): {len(test_set)} ({SPLIT_RATIO[2]*100:.0f}%)")
-    print("-" * 35)
-    print("Script finished successfully.")
+        # Fixtures
+        if args.fixtures.exists():
+            samples = load_jsonl(args.fixtures)
+            all_raw.extend(samples)
+            print(f"  Loaded {len(samples):>5} from {args.fixtures}")
+        else:
+            print(f"  [SKIP] {args.fixtures} not found")
+
+    # Individual source loading for non --all mode
+    if args.extracted.exists() and not args.all:
+        for fname in ["extracted_train.jsonl", "extracted_val.jsonl", "extracted_test.jsonl"]:
+            path = args.extracted / fname
+            samples = load_jsonl(path)
+            all_raw.extend(samples)
+            sources_loaded = True
+
+    if not sources_loaded and not args.all:
+        print("Error: No data sources loaded. Use --all or specify paths.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\n  Total raw samples: {len(all_raw)}")
+
+    # ── Validate ────────────────────────────────────────────────────
+    print("\n--- Validation ---")
+    valid_samples = []
+    error_counts: dict[str, int] = {}
+    for i, sample in enumerate(all_raw):
+        errs = validate_sample(sample, i)
+        if errs:
+            for e in errs:
+                key = e.split("] ", 1)[-1] if "] " in e else e
+                error_counts[key] = error_counts.get(key, 0) + 1
+        else:
+            valid_samples.append(sample)
+
+    print(f"  Valid:   {len(valid_samples)}")
+    print(f"  Invalid: {len(all_raw) - len(valid_samples)}")
+    if error_counts:
+        print("  Top errors:")
+        sorted_errors = sorted(error_counts.items(), key=lambda x: -x[1])[:5]
+        for err, count in sorted_errors:
+            print(f"    [{count:>4}x] {err}")
+
+    if not valid_samples:
+        print("\nERROR: No valid samples after validation. Check data extraction.", file=sys.stderr)
+        sys.exit(1)
+
+    # ── Deduplicate ─────────────────────────────────────────────────
+    print("\n--- Deduplication ---")
+    seen_hashes: set[str] = set()
+    seen_ids: set[str] = set()
+    deduped = []
+    dupe_hash = 0
+    dupe_id = 0
+    for s in valid_samples:
+        h = sha256(s)
+        tid = s["metadata"].get("task_id", "")
+        if h in seen_hashes:
+            dupe_hash += 1
+            continue
+        if tid and tid in seen_ids:
+            dupe_id += 1
+            continue
+        seen_hashes.add(h)
+        if tid:
+            seen_ids.add(tid)
+        deduped.append(s)
+
+    print(f"  Content duplicates removed: {dupe_hash}")
+    print(f"  Task ID duplicates removed: {dupe_id}")
+    print(f"  After dedup:                {len(deduped)}")
+
+    # ── Shuffle and Split ───────────────────────────────────────────
+    print("\n--- Splitting ---")
+    rng = random.Random(args.seed)
+    rng.shuffle(deduped)
+
+    n = len(deduped)
+    n_train = int(n * args.split[0])
+    n_val = int(n * args.split[1])
+    train = deduped[:n_train]
+    val = deduped[n_train:n_train + n_val]
+    test = deduped[n_train + n_val:]
+
+    print(f"  Train: {len(train)} ({args.split[0]*100:.0f}%)")
+    print(f"  Val:   {len(val)} ({args.split[1]*100:.0f}%)")
+    print(f"  Test:  {len(test)} ({args.split[2]*100:.0f}%)")
+
+    # ── Statistics per split ────────────────────────────────────────
+    print("\n--- Split Statistics ---")
+    train_stats = compute_stats(train)
+    val_stats = compute_stats(val)
+    test_stats = compute_stats(test)
+
+    for name, stats in [("Train", train_stats), ("Val", val_stats), ("Test", test_stats)]:
+        print(f"\n  {name}:")
+        print(f"    Count:        {stats['count']}")
+        print(f"    Verified:     {stats['verified_rate']}")
+        print(f"    Multi-turn:   {stats['multi_turn_rate']}")
+        print(f"    Teacher used: {stats['teacher_used_rate']}")
+        print(f"    Avg msgs:     {stats['avg_messages']}")
+        print(f"    Difficulty:   {stats['difficulty_distribution']}")
+
+    # ── Write output ────────────────────────────────────────────────
+    if args.dry_run:
+        print("\n  [DRY RUN] No files written.")
+    else:
+        args.output.mkdir(parents=True, exist_ok=True)
+        splits = {
+            "train.jsonl": train,
+            "val.jsonl": val,
+            "test.jsonl": test,
+        }
+        for fname, data in splits.items():
+            out_path = args.output / fname
+            with open(out_path, "w", encoding="utf-8") as f:
+                for sample in data:
+                    f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+            print(f"\n  Wrote {len(data)} samples → {out_path}")
+
+        # Report
+        report = {
+            "prepared_at": datetime.now(timezone.utc).isoformat(),
+            "total_raw": len(all_raw),
+            "valid_after_validation": len(valid_samples),
+            "valid_after_dedup": len(deduped),
+            "validation_errors": error_counts,
+            "dedup_content_removed": dupe_hash,
+            "dedup_id_removed": dupe_id,
+            "split_ratios": args.split,
+            "train": train_stats,
+            "val": val_stats,
+            "test": test_stats,
+        }
+        report_path = args.output / "prepare_report.json"
+        with open(report_path, "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        print(f"\n  Report: {report_path}")
+
+    print("\n  Done.")
+
 
 if __name__ == "__main__":
     main()

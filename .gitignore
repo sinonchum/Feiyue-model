@@ -1,6 +1,11 @@
 # Training outputs (large, regeneratable)
 data/train.jsonl
 data/val.jsonl
+data/test.jsonl
+data/raw/
+data/synthetic/
+data/fixtures/
+data/prepare_report.json
 
 # Python
 __pycache__/
@@ -11,6 +16,7 @@ __pycache__/
 *.bin
 *.safetensors
 feiyue-qwen-8b-worker/
+outputs/
 
 # OS
 .DS_Store

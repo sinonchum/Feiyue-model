@@ -48,8 +48,8 @@ def create_dummy_files_if_needed(config_path, train_path, val_path):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Fine-tune Qwen2-4B using QLoRA.")
-    parser.add_argument("--config", type=str, default="config.yaml", help="Path to the YAML configuration file.")
+    parser = argparse.ArgumentParser(description="Fine-tune Qwen3-4B using QLoRA (PatentFlow-verified pipeline).")
+    parser.add_argument("--config", type=str, default="configs/training_config.yaml", help="Path to the YAML configuration file.")
     parser.add_argument("--smoke", action="store_true", help="Run in smoke test mode for a quick check.")
     args = parser.parse_args()
 
