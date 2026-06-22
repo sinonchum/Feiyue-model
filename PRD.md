@@ -6,23 +6,19 @@
 
 ---
 
-## 0. Positioning: Why This Beats Holo3 Without Vision
+## 0. Positioning
 
-Holo3 (H Company) is a **vision-language computer-use model**. It sees screens, clicks buttons, navigates GUIs. It scored 78.85% on OSWorld-Verified. It costs $0.40–$3.00 per million tokens via API.
+Feiyue-Model is a **text-only agent model** purpose-built for the Feiyue+Hermes runtime. It does not do vision, does not navigate GUIs, and does not call external APIs. Instead, it masters one thing deeply: executing multi-turn, tool-augmented tasks inside the Hermes Agent environment, with verification-gated self-correction.
 
-Feiyue-Model takes the **opposite bet**: 
-
-| Axis | Holo3 | Feiyue-Model |
-|------|-------|-------------|
-| **Modality** | Vision + text | Text only |
-| **Core capability** | GUI perception & navigation | Tool orchestration & self-correction |
-| **Training** | Synthetic env factory + curated RL | Real execution traces + verification-gated RL |
-| **Self-improvement** | Static after training | **Continuous** — every Feiyue run produces new training data |
-| **Cost per call** | $0.001–0.01 (API) | **$0** (local RTX 5060) |
-| **Privacy** | Data sent to H Company API | **Fully local** |
-| **Evolvability** | Requires H Company to retrain | **Self-evolving flywheel** — model improves with every Feiyue wave |
-
-**The wager**: In a text-only agent runtime like Hermes, deep tool-use mastery + relentless self-improvement beats broad-but-shallow vision-based computer use. Holo3 must generalize across infinite UIs; Feiyue-Model only needs to master one runtime — Hermes — and it has 152+ executions of evidence to learn from, with more generated every day.
+| Axis | Feiyue-Model |
+|------|-------------|
+| **Modality** | Text only |
+| **Core capability** | Tool orchestration & self-correction |
+| **Training** | Real execution traces + verification-gated RL |
+| **Self-improvement** | **Continuous** — every Feiyue run produces new training data |
+| **Cost per call** | **$0** (local RTX 5060) |
+| **Privacy** | **Fully local** |
+| **Evolvability** | **Self-evolving flywheel** — model improves with every Feiyue wave |
 
 ---
 
@@ -334,18 +330,7 @@ Teacher (specification) always stays on gpt-5.5 — it's called <10% of runs and
 | Cost per 1000 calls | $3–5 | **$0** | **$0** |
 | Monthly improvement | 0 (static) | +2pp pass rate | +5pp pass rate |
 
-### 6.2 vs Holo3 (competitive benchmark)
-
-Since Holo3 is vision-based and Feiyue-Model is text-only, direct benchmark comparison requires a text-only agent benchmark. Proposed:
-
-| Benchmark | What It Measures | Holo3 (estimated) | Feiyue-Model Target |
-|-----------|-----------------|-------------------|---------------------|
-| **BFCL v3 Multi-Turn** | Multi-turn tool orchestration | ~45% (zero-shot, no vision tasks) | > 55% |
-| **SWE-bench Lite** | Real-world bug fixes | N/A (vision model, not code) | > 20% (strong for 8B) |
-| **Feiyue-Internal-50** | 50 held-out Feiyue TaskContracts | — | > 80% pass rate |
-| **Hermes Tool Suite** | Hermes-native tool use across 9 categories | — | > 70% pass rate |
-
-### 6.3 Self-Evolution Metrics
+### 6.2 Self-Evolution Metrics
 
 | Metric | Month 1 | Month 3 | Month 6 |
 |--------|---------|---------|---------|
@@ -420,30 +405,7 @@ Since Holo3 is vision-based and Feiyue-Model is text-only, direct benchmark comp
 
 ---
 
-## 9. Competitive Analysis: Why This Architecture Beats Holo3 at Text Agency
-
-### Holo3's Strengths (we don't compete on these)
-- Sees and understands any GUI → we don't do vision
-- Navigates web pages, fills forms, clicks buttons → not our lane
-- 78.85% OSWorld → irrelevant benchmark for text agents
-
-### Holo3's Weaknesses (we attack these)
-- **Static**: Once trained, Holo3 never improves until H Company retrains it
-- **Expensive**: $0.40–$3.00/M tokens. A 1000-call day costs $4–30
-- **Generic**: Trained for "any enterprise UI" — no deep understanding of any specific runtime
-- **No self-correction loop**: Holo3 doesn't learn from its own failures in production
-- **Cloud-dependent**: All inference goes through H Company API
-
-### Feiyue-Model's Moat
-1. **Self-evolution**: Every Feiyue run produces training data. The model improves monthly without human intervention.
-2. **Zero marginal cost**: Once trained, inference is free forever on existing hardware.
-3. **Runtime mastery**: Instead of shallow coverage of infinite UIs, deep mastery of one runtime (Hermes) with its full tool surface.
-4. **Verification-gated training**: Every training sample has a ground-truth pass/fail signal — no reward model hallucination, no RLHF ambiguity.
-5. **Privacy**: All data stays local. No third party sees task contracts, code, or verification results.
-
----
-
-## 10. Open Questions & Decisions
+## 9. Open Questions & Decisions
 
 | Question | Current Decision | Rationale |
 |----------|-----------------|-----------|
@@ -467,8 +429,7 @@ Since Holo3 is vision-based and Feiyue-Model is text-only, direct benchmark comp
 | [Fireworks: Best Practices for Multi-Turn RL](https://fireworks.ai/blog/best-practices-for-multi-turn-RL) | RL > SFT alone; trajectory-level rewards; strong base model |
 | [Bespoke Labs: RL for Tool Use](https://www.bespokelabs.ai/blog/improving-multi-turn-tool-use-with-reinforcement-learning) | GRPO improved Qwen2.5-7B tool use by 23% with 100 samples |
 | [Qwen3 Technical Report](https://arxiv.org/abs/2505.09388) | Qwen3 trained on agent tasks; thinking mode; Apache 2.0 |
-| [Holo3 (H Company)](https://hcompany.ai/holo3) | Competitive baseline: 78.85% OSWorld, MoE, vision-only |
 
 ---
 
-> **Bottom line**: Feiyue-Model v2.0 doesn't try to be a cheaper Holo3. It's a fundamentally different bet — a model that masters one runtime deeply, improves itself continuously from real execution evidence, and costs nothing to run. In the text-agent space where Hermes operates, that's a winning hand.
+> **Bottom line**: Feiyue-Model v2.0 is a text-only agent model that masters the Hermes runtime deeply, improves itself continuously from real execution evidence, and costs nothing to run. No API keys, no third-party dependencies, no vision — just relentless self-improvement through verification-gated training.
