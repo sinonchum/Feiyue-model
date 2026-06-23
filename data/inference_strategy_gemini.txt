@@ -1,0 +1,110 @@
+Given your specific constraints—especially the fact that you are evaluating **coding ability** and only have **8 evaluation items**—here is the breakdown of your options and the recommended approach.
+
+### Answers to Your Questions
+
+**1 & 2. 4-bit vs. 8-bit for Coding Evaluation**
+Do **not** use 4-bit (NF4) for evaluating a coding model if you can avoid it. Coding tasks are highly sensitive to exact syntax; a single degraded token can turn a working script into a syntax error. While 4-bit quantization is great for casual chat, it causes measurable degradation in reasoning and coding tasks, especially on smaller models (<7B parameters). 
+**8-bit (INT8) quantization**, on the other hand, is virtually lossless. Research shows that 8-bit quantization preserves the original FP16 performance with >99% fidelity. It will not unfairly penalize your model.
+
+**3. Should you use CPU offloading?**
+Because you only have **8 evaluation items**, CPU offloading is a highly viable option. If you had 1,000 items, the slow speed of CPU offloading would be agonizing. But for 8 items, waiting 2–5 minutes per generation instead of 10 seconds is a perfectly acceptable trade-off to guarantee 100% FP16 mathematical precision.
+
+**4. What is the recommended approach?**
+You have two excellent paths. 
+*   **Path A (Recommended for speed + accuracy):** Use **8-bit quantization**. It reduces the model to ~4GB, leaving 4GB of VRAM for the KV cache (which is crucial because coding prompts/outputs are often long). It will run fast and preserve quality.
+*   **Path B (The "Purist" Approach):** Use **CPU offloading via Accelerate**. If you are writing a paper or need absolute certainty that the weights are untouched, use this. 
+
+Below is the exact code for both approaches.
+
+---
+
+### Path A: 8-Bit Quantization (Best Balance)
+This will load the model in ~4GB, leaving plenty of room for long coding contexts, and will run at GPU speeds.
+
+**Prerequisites:** `pip install bitsandbytes accelerate transformers`
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
+
+model_path = "./your-merged-model-path"
+
+# Configure 8-bit quantization
+quantization_config = BitsAndBytesConfig(
+    load_in_8bit=True,
+    llm_int8_threshold=6.0 # Default threshold, preserves outlier weights in fp16 for accuracy
+)
+
+print("Loading model in 8-bit...")
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    quantization_config=quantization_config,
+    device_map="auto",
+    torch_dtype=torch.float16,
+    # attn_implementation="flash_attention_2" # Uncomment if you have Flash Attention installed
+)
+
+# Example Inference
+prompt = "<|im_start|>user\nWrite a Python function to calculate Fibonacci.<|im_end|>\n<|im_start|>assistant\n"
+inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+
+with torch.no_grad():
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=512,
+        temperature=0.2, # Low temperature recommended for coding eval
+        do_sample=True
+    )
+
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
+
+---
+
+### Path B: CPU Offloading (Maximum Precision)
+This keeps the model in pure FP16. It will load the layers that fit into your 8GB VRAM (leaving a buffer for generation) and offload the rest to your system RAM. 
+
+*Note: Generation will be slow (likely 1-5 tokens per second), but for 8 items, it will only take a few minutes total.*
+
+**Prerequisites:** `pip install accelerate transformers`
+
+```python
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+
+model_path = "./your-merged-model-path"
+
+print("Loading model with CPU offloading...")
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+# We explicitly tell accelerate how much VRAM it is allowed to use.
+# We limit GPU to 6GB to leave 2GB free for the KV cache and activations during generation.
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    device_map="auto",
+    max_memory={
+        0: "6GiB",        # Limit GPU VRAM usage for weights
+        "cpu": "32GiB"    # Adjust based on your system RAM
+    },
+    torch_dtype=torch.float16,
+)
+
+# Example Inference
+prompt = "<|im_start|>user\nWrite a Python function to calculate Fibonacci.<|im_end|>\n<|im_start|>assistant\n"
+# Note: Do NOT manually move inputs to "cuda" here. Accelerate handles device placement automatically.
+inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+with torch.no_grad():
+    outputs = model.generate(
+        **inputs,
+        max_new_tokens=512,
+        temperature=0.2,
+        do_sample=True
+    )
+
+print(tokenizer.decode(outputs[0], skip_special_tokens=True))
+```
+
+### Summary Recommendation
+Start with **Path A (8-bit)**. The `llm_int8_threshold=6.0` feature in `bitsandbytes` specifically isolates outlier weights and keeps them in FP16 while quantizing the rest to 8-bit. This was specifically designed to prevent the degradation of emergent abilities (like coding) in LLMs. It will give you a fair, accurate evaluation while running at full GPU speed.

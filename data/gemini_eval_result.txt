@@ -1,0 +1,96 @@
+```json
+{
+  "evaluations": [
+    {
+      "task_id": "eval-py-bugfix-1",
+      "format_compliance": 1,
+      "task_understanding": 1,
+      "code_quality": 2,
+      "tool_usage": 0,
+      "total": 4,
+      "notes": "Outputs a Python script to run tests directly instead of using tools to read the file and apply a patch. Fails to actually fix the bug, only creates a test runner."
+    },
+    {
+      "task_id": "eval-ts-new-func-1",
+      "format_compliance": 1,
+      "task_understanding": 2,
+      "code_quality": 3,
+      "tool_usage": 0,
+      "total": 6,
+      "notes": "Generates correct and idiomatic TypeScript code in a markdown block, but hallucinates running the tests and verifying the output instead of using the run_tests tool."
+    },
+    {
+      "task_id": "eval-py-add-test-1",
+      "format_compliance": 1,
+      "task_understanding": 2,
+      "code_quality": 2,
+      "tool_usage": 0,
+      "total": 5,
+      "notes": "Provides the correct test case code directly, but fails to use file_read or file_write tools to actually insert it into the file. Code is slightly unidiomatic (e.g., `== True`)."
+    },
+    {
+      "task_id": "eval-py-refactor-1",
+      "format_compliance": 0,
+      "task_understanding": 1,
+      "code_quality": 0,
+      "tool_usage": 0,
+      "total": 1,
+      "notes": "Completely fails to output code or tool calls. Outputs plain text describing the steps it should take and hallucinates that the tests passed."
+    },
+    {
+      "task_id": "eval-ts-search-replace-1",
+      "format_compliance": 1,
+      "task_understanding": 1,
+      "code_quality": 1,
+      "tool_usage": 0,
+      "total": 3,
+      "notes": "Instead of using the provided search_files and apply_patch tools, it writes a custom Python script to do the find and replace. The generated code is also cut off at the end."
+    },
+    {
+      "task_id": "eval-py-add-method-1",
+      "format_compliance": 0,
+      "task_understanding": 1,
+      "code_quality": 0,
+      "tool_usage": 0,
+      "total": 1,
+      "notes": "Attempts to use a tool to read the file, which is a good first step, but uses OpenAI-style JSON format instead of the required <tool_call> XML blocks. Also hallucinates the tool name as 'read_file' instead of 'file_read'."
+    },
+    {
+      "task_id": "eval-py-error-recovery-1",
+      "format_compliance": 1,
+      "task_understanding": 2,
+      "code_quality": 1,
+      "tool_usage": 0,
+      "total": 4,
+      "notes": "Understands the task and writes the API and test files directly in markdown blocks, but fails to use the file_write tool. The code generation is cut off mid-sentence."
+    },
+    {
+      "task_id": "eval-ts-multi-file-feature-1",
+      "format_compliance": 1,
+      "task_understanding": 2,
+      "code_quality": 2,
+      "tool_usage": 0,
+      "total": 5,
+      "notes": "Successfully designs the multi-file structure and writes good TypeScript code, but outputs it directly instead of using file_write tools. The response is truncated at the end."
+    }
+  ],
+  "summary": {
+    "easy_avg": "5.0/10",
+    "medium_avg": "1.7/10",
+    "hard_avg": "4.5/10",
+    "overall_avg": "3.6/10",
+    "strengths": [
+      "Capable of generating syntactically correct and logical code for both Python and TypeScript.",
+      "Understands multi-file project structures and how to separate concerns (e.g., types, services, tests)."
+    ],
+    "weaknesses": [
+      "Complete failure to use the required <tool_call> XML format for Hermes tools.",
+      "Severe hallucination issues: frequently pretends to have run tests and verified outputs instead of actually invoking tools.",
+      "Prone to generating custom scripts to solve tasks (like search and replace) rather than using the environment's provided tools.",
+      "Frequent truncation/cut-off issues in longer responses, indicating problems with max_tokens or EOS token prediction.",
+      "Occasionally falls back to JSON tool calling formats from other models."
+    ],
+    "recommendation": "The model requires significant retraining focused specifically on the Hermes XML tool-calling syntax. The dataset should heavily penalize hallucinating test results and reward step-by-step tool execution. Additionally, investigate the truncation issue by checking the max_tokens limit during inference or ensuring the EOS token is properly learned during fine-tuning."
+  }
+}
+```

@@ -29,6 +29,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+FORMAT_RULES = """
+CRITICAL FORMAT RULES — YOU MUST FOLLOW THESE:
+1. EVERY tool call MUST be a <tool_call> XML block inside the "content" string field.
+   Example: {"role": "assistant", "content": "<tool_call>\\n{\\"name\\": \\"read_file\\", \\"arguments\\": {\\"path\\": \\"file.py\\"}}\\n</tool_call>"}
+2. NEVER use "tool_calls" array field — this is WRONG and will be rejected.
+3. EVERY tool response MUST be a <tool_response> XML block inside the "content" string field.
+   Example: {"role": "tool", "content": "<tool_response>\\n{\\"success\\": true}\\n</tool_response>"}
+4. Every message MUST have exactly two keys: "role" and "content". Do NOT add "tool_call_id" or "tool_calls" keys.
+5. Valid roles: "system", "user", "assistant", "tool"
+6. assistant messages alternate with tool messages: assistant makes tool call → tool responds → assistant continues.
+7. Trajectory MUST end with an assistant message containing a text summary.
+"""
+
 # ── Constants ──────────────────────────────────────────────────────────
 
 HERMES_TOOLS = [
@@ -61,13 +74,11 @@ def safe_json_dumps(obj: Any, indent: int = 2) -> str:
     return json.dumps(obj, ensure_ascii=False, indent=indent)
 
 
-def call_hermes(prompt: str, model: str = "gpt-5.5",
-                provider: str = "openai-codex", timeout: int = 120) -> str:
+def call_hermes(prompt: str, timeout: int = 180) -> str:
     """Call Hermes in one-shot mode and return the response text."""
     try:
         result = subprocess.run(
-            ["hermes", "chat", "-q", prompt,
-             "--model", model, "--provider", provider, "--quiet"],
+            ["hermes", "chat", "-q", prompt, "--quiet"],
             capture_output=True, text=True, timeout=timeout,
         )
         if result.returncode != 0:
@@ -152,7 +163,9 @@ def generate_difficulty_curriculum(
         else:
             target = "hard"
 
-        prompt = f"""Generate a Feiyue worker trajectory for this task.
+        prompt = f"""{FORMAT_RULES}
+
+Generate a Feiyue worker trajectory for this task.
 
 Base difficulty: {difficulty} → Scale to: {target}
 
@@ -161,7 +174,7 @@ Template:
 
 Generate a complete multi-turn ChatML trajectory (5-10 messages) where the worker:
 1. Receives a harder version of this contract (more files, stricter verification)
-2. Makes tool calls (file_write, run_tests)
+2. Makes tool calls (file_write, run_tests) using {FORMAT_RULES.split(chr(10))[0]}
 3. Verifies the result
 4. If verification fails, self-corrects and retries
 5. Final verification passes
@@ -229,21 +242,23 @@ def generate_tool_diversity(
 
         desc = tool_descriptions.get(tool, f"Use {tool} tool")
         for i in range(target_per_tool):
-            prompt = f"""Generate a Feiyue worker trajectory where the primary tool used is '{tool}'.
+            prompt = f"""{FORMAT_RULES}
+
+Generate a Feiyue worker trajectory where the primary tool used is '{tool}'.
 
 Task: {desc}. Variant #{i}.
 
 Generate a complete multi-turn ChatML trajectory (5-10 messages) where the worker:
 1. Receives a TaskContract requiring '{tool}'
 2. Plans the approach
-3. Uses '{tool}' (and supporting tools as needed)
+3. Uses '{tool}' (and supporting tools as needed) using {FORMAT_RULES}
 4. Verifies the result
 5. Outputs the final status
 
 Output ONLY valid JSON:
 {{"messages": [...], "metadata": {{"tools_used": ["{tool}", ...]}}}}
 """
-            response = call_hermes(prompt, timeout=90)
+            response = call_hermes(prompt)
             if not response:
                 continue
 
@@ -290,7 +305,9 @@ def generate_error_injection(
     for i in range(target_count):
         error_type = error_types[i % len(error_types)]
 
-        prompt = f"""Generate a Feiyue worker trajectory with ERROR INJECTION.
+        prompt = f"""{FORMAT_RULES}
+
+Generate a Feiyue worker trajectory with ERROR INJECTION.
 
 Error type: {error_type}
 
@@ -301,12 +318,12 @@ The TaskContract should contain a deliberate issue that the worker must:
 4. Complete the task correctly
 
 The trajectory should show the worker initially confused/blocked, then
-recovering through intelligent tool use.
+recovering through intelligent tool use. ALL tool calls must use {FORMAT_RULES}.
 
 Output ONLY valid JSON:
 {{"messages": [...], "metadata": {{"difficulty": "hard", "teacher_used": false}}}}
 """
-        response = call_hermes(prompt, timeout=90)
+        response = call_hermes(prompt)
         if not response:
             continue
 

@@ -106,24 +106,34 @@ def validate_sample(sample: dict, idx: int) -> list[str]:
         if not content or not isinstance(content, str):
             errors.append(f"[{idx}] msg[{i}]: missing or non-string content")
 
-    # Tool call validation: <tool_call> blocks must be valid JSON
-    full_text = "\n".join(m.get("content", "") for m in msgs)
-    tool_blocks = re.findall(r'<tool_call>\s*\n?(.*?)\n?\s*</tool_call>', full_text, re.DOTALL)
-    for block in tool_blocks:
-        try:
-            parsed = json.loads(block.strip())
-            if "name" not in parsed or "arguments" not in parsed:
-                errors.append(f"[{idx}] tool_call missing 'name' or 'arguments': {block[:80]}")
-        except json.JSONDecodeError:
-            errors.append(f"[{idx}] invalid JSON in tool_call: {block[:80]}")
+    # Tool call validation: only check assistant messages
+    for i, msg in enumerate(msgs):
+        if msg["role"] != "assistant":
+            continue
+        content = msg.get("content", "")
+        tool_blocks = re.findall(r'<tool_call>\s*\n?(.*?)\n?\s*</tool_call>', content, re.DOTALL)
+        for block in tool_blocks:
+            try:
+                parsed = json.loads(block.strip())
+                if "name" not in parsed or "arguments" not in parsed:
+                    errors.append(f"[{idx}] msg[{i}]: tool_call missing 'name' or 'arguments': {block[:80]}")
+            except json.JSONDecodeError:
+                errors.append(f"[{idx}] msg[{i}]: invalid JSON in tool_call: {block[:80]}")
 
-    # Tool response validation
-    resp_blocks = re.findall(r'<tool_response>\s*\n?(.*?)\n?\s*</tool_response>', full_text, re.DOTALL)
-    for block in resp_blocks:
-        try:
-            json.loads(block.strip())
-        except json.JSONDecodeError:
-            errors.append(f"[{idx}] invalid JSON in tool_response: {block[:80]}")
+    # Tool response validation: only check tool messages
+    for i, msg in enumerate(msgs):
+        if msg["role"] != "tool":
+            continue
+        content = msg.get("content", "")
+        resp_blocks = re.findall(r'<tool_response>\s*\n?(.*?)\n?\s*</tool_response>', content, re.DOTALL)
+        for block in resp_blocks:
+            try:
+                json.loads(block.strip())
+            except json.JSONDecodeError:
+                errors.append(f"[{idx}] msg[{i}]: invalid JSON in tool_response: {block[:80]}")
+
+    # Build full text for path/secret checks
+    full_text = "\n".join(m.get("content", "") for m in msgs)
 
     # No absolute paths
     for pattern in PATH_PATTERNS:

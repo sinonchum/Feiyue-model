@@ -12,7 +12,7 @@ from transformers import (
     AutoTokenizer,
     BitsAndBytesConfig,
 )
-from trl import DataCollatorForCompletionOnlyLM, SFTConfig, SFTTrainer
+from trl import SFTConfig, SFTTrainer
 
 
 def create_dummy_files_if_needed(config_path, train_path, val_path):
@@ -45,6 +45,24 @@ def create_dummy_files_if_needed(config_path, train_path, val_path):
         with open(val_path, 'w') as f:
             for _ in range(100):
                 f.write(json.dumps(dummy_data_sample) + '\n')
+
+
+def format_messages_to_chatml(example):
+    """Convert messages list to ChatML text for SFTTrainer formatting_func."""
+    msgs = example.get("messages", [])
+    parts = []
+    for m in msgs:
+        role = m["role"]
+        content = m.get("content", "")
+        if role == "system":
+            parts.append(f"<|im_start|>system\n{content}<|im_end|>\n")
+        elif role == "user":
+            parts.append(f"<|im_start|>user\n{content}<|im_end|>\n")
+        elif role == "assistant":
+            parts.append(f"<|im_start|>assistant\n{content}<|im_end|>\n")
+        elif role == "tool":
+            parts.append(f"<|im_start|>tool\n{content}<|im_end|>\n")
+    return "".join(parts)
 
 
 def main():
@@ -112,23 +130,18 @@ def main():
 
     if args.smoke:
         print("--- Running in smoke test mode ---")
-        train_dataset = train_dataset.select(range(50))
-        val_dataset = val_dataset.select(range(50))
+        train_dataset = train_dataset.select(range(min(50, len(train_dataset))))
+        val_dataset = val_dataset.select(range(min(50, len(val_dataset))))
 
     # --- 4. Trainer Configuration ---
     print("--- 4. Configuring the SFTTrainer ---")
-    
-    # Data collator for completion-only fine-tuning
-    response_template = "<|im_start|>assistant\n"
-    collator = DataCollatorForCompletionOnlyLM(
-        response_template=response_template,
-        tokenizer=tokenizer,
-    )
 
     # Training arguments
     if args.smoke:
         training_args = SFTConfig(
             output_dir=config['output_dir'],
+            max_length=config['max_seq_length'],
+            dataset_text_field="messages",  # handled by formatting_func
             num_train_epochs=1,
             per_device_train_batch_size=1,
             gradient_accumulation_steps=1,
@@ -148,6 +161,8 @@ def main():
     else:
         training_args = SFTConfig(
             output_dir=config['output_dir'],
+            max_length=config['max_seq_length'],
+            dataset_text_field="messages",
             num_train_epochs=3,
             per_device_train_batch_size=4,
             gradient_accumulation_steps=2,
@@ -169,15 +184,12 @@ def main():
     print("--- 5. Initializing and starting training ---")
     trainer = SFTTrainer(
         model=model,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         peft_config=peft_config,
-        dataset_text_field="text",
-        data_collator=collator,
-        max_seq_length=config['max_seq_length'],
-        packing=False,
+        formatting_func=format_messages_to_chatml,
     )
 
     start_time = time.time()
@@ -237,6 +249,7 @@ def main():
     print(response)
 
     # Extract only the assistant's response
+    response_template = "<|im_start|>assistant\n"
     assistant_response = response.split(response_template)[-1]
     print("\nAssistant's Response:")
     print(assistant_response.replace("<|im_end|>", "").strip())
