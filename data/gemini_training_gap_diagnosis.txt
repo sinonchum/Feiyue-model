@@ -1,0 +1,99 @@
+Based on a close analysis of your training data samples and inference setup, the issue is **not** your inference configuration. The root cause lies in **severe data corruption (truncation) in your training dataset**, combined with the base model's strong pre-trained habits.
+
+Here is the detailed diagnosis and the step-by-step fix.
+
+---
+
+### 1. What is the most likely root cause?
+The primary root cause is that **your training data contains broken, truncated text and malformed JSON.** Because the model is being trained on incomplete `<tool_call>` blocks, it learns that this format is "broken" or unreliable. Consequently, it falls back to its pre-trained Instruct behavior (outputting standard Markdown code blocks) to minimize loss.
+
+**Evidence from your provided samples:**
+*   **Truncated System Prompt:** In Sample 1, your system prompt cuts off mid-sentence: 
+    `"4. If verifi"` (Missing the rest of the rule).
+*   **Truncated Assistant Tool Call:** In Sample 1, the assistant's `file_write` command is completely broken. It ends abruptly at:
+    `...if num % i == 0 or num % (i + 2) == 0:\n            return False\n"`
+    *It is missing the closing `}}`, the closing `\n</tool_call>` tag, and the rest of the Python code.*
+*   **The "30%" Data:** You mentioned 70% of the data is tool calls. If the remaining 30% consists of well-formed, direct Markdown answers, the model will heavily bias toward the 30% because the 70% tool-call data is syntactically broken and confusing to learn from.
+*   **Inference Prompt Mismatch (Likely):** In training, your user prompts are strict JSON strings (e.g., `{"task_id": "...", "description": "..."}`). If your inference prompts are plain text (e.g., *"Fix the off-by-one error..."*), the model will not recognize the context and will revert to being a standard coding assistant.
+
+### 2. Is it the formatting_func vs inference config mismatch?
+**No.** Your `formatting_func` and inference configs are actually perfectly correct for standard SFT.
+*   `add_generation_prompt=False` during training is correct (the assistant text is already in the data).
+*   `add_generation_prompt=True` during inference is correct (it appends `<|im_start|>assistant\n` to trigger the model to speak).
+*   `enable_thinking=False` is also correct, as your training data does not contain `<think>` tags (which are specific to reasoning models like DeepSeek-R1 or Qwen-QwQ).
+
+### 3. How should I fix this - retrain or fix inference?
+You **must retrain**. No inference configuration can fix a model that has been trained on truncated JSON and broken XML tags. You need to fix your data generation/preprocessing pipeline and run the SFT process again.
+
+---
+
+### 4. Concrete, Actionable Step-by-Step Fix
+
+#### Step 1: Fix your Data Generation / Preprocessing Pipeline
+The truncation in Sample 1 usually happens when the "teacher" model hit a `max_tokens` limit during data generation, or a regex script improperly sliced the data. 
+*   Write a validation script to filter out broken data before training. 
+*   Run this Python script over your `train.jsonl`:
+
+```python
+import json
+
+def validate_data(filepath):
+    valid_data = []
+    with open(filepath, 'r') as f:
+        for line in f:
+            item = json.loads(line)
+            is_valid = True
+            
+            for msg in item["messages"]:
+                content = msg["content"]
+                
+                # 1. Check for truncated system prompts
+                if msg["role"] == "system" and content.endswith("verifi"):
+                    is_valid = False
+                    
+                # 2. Check for unclosed tool calls
+                if "<tool_call>" in content and "</tool_call>" not in content:
+                    is_valid = False
+                    
+                # 3. Check if JSON inside tool_call is valid
+                if "<tool_call>" in content and "</tool_call>" in content:
+                    try:
+                        json_str = content.split("<tool_call>")[1].split("</tool_call>")[0].strip()
+                        json.loads(json_str)
+                    except json.JSONDecodeError:
+                        is_valid = False
+                        
+            if is_valid:
+                valid_data.append(item)
+                
+    print(f"Kept {len(valid_data)} valid examples.")
+    # Save valid_data to new file...
+```
+
+#### Step 2: Standardize the 30% Non-Tool Data
+If 30% of your data does *not* use tools, ensure the system prompt for those specific rows **does not** contain the strict rule: *"2. Tool calls must be valid JSON in <tool_call> blocks"*. 
+If you tell the model it *must* use tools, but the training target shows it outputting Markdown, you are teaching the model to ignore its system prompt.
+
+#### Step 3: Ensure Inference Prompts Match Training Prompts Exactly
+During inference, you must wrap the user's request in the exact same JSON schema used during training. 
+
+**Do NOT do this at inference:**
+```python
+messages = [
+    {"role": "system", "content": "You are a Feiyue worker..."},
+    {"role": "user", "content": "Fix the off-by-one error in get_items function"} # WRONG
+]
+```
+
+**DO this at inference:**
+```python
+messages = [
+    {"role": "system", "content": "You are a Feiyue worker..."},
+    {"role": "user", "content": "{\"task_id\": \"eval-py-bugfix-1\", \"instruction\": \"Fix the off-by-one error in get_items function\", \"allowed_files\": [\"main.py\"]}"} # CORRECT
+]
+```
+
+#### Step 4: Retrain the Model
+Once your dataset is strictly validated (no missing `</tool_call>` tags, no broken JSON, no cut-off system prompts), run your SFT again using the exact same `formatting_func`. 
+
+Because Qwen3-4B-Instruct is a highly capable base model, once it sees 100% syntactically correct XML/JSON in the training data, it will adopt the Feiyue agent persona flawlessly.
