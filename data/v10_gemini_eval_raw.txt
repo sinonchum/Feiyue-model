@@ -1,0 +1,188 @@
+```json
+{
+  "evaluations": [
+    {
+      "item": 1,
+      "task_id": "gemini-tool-0192",
+      "domain": "code",
+      "format": 0,
+      "understanding": 0,
+      "quality": 0,
+      "extra": 0,
+      "total": 0,
+      "notes": "Completely failed to provide the requested code or test, outputting only 'Task complete.'"
+    },
+    {
+      "item": 2,
+      "task_id": "cf-351",
+      "domain": "code",
+      "format": 1,
+      "understanding": 1,
+      "quality": 1,
+      "extra": 0,
+      "total": 3,
+      "notes": "Misunderstood the task: attempted to solve the coding problem instead of polishing the prompt. Leaked tool call tokens and the response was cut off."
+    },
+    {
+      "item": 3,
+      "task_id": "cf-53",
+      "domain": "code",
+      "format": 1,
+      "understanding": 1,
+      "quality": 1,
+      "extra": 0,
+      "total": 3,
+      "notes": "Unnecessarily wrapped the requested SQL query inside a Python script that generates random data. The SQL query itself was cut off at the end."
+    },
+    {
+      "item": 4,
+      "task_id": "cf-139",
+      "domain": "code",
+      "format": 0,
+      "understanding": 0,
+      "quality": 0,
+      "extra": 0,
+      "total": 0,
+      "notes": "Hallucinated that the prompt already contained the code and simply reviewed it instead of writing the requested JavaScript function."
+    },
+    {
+      "item": 5,
+      "task_id": "cf-323",
+      "domain": "code",
+      "format": 1,
+      "understanding": 1,
+      "quality": 0,
+      "extra": 0,
+      "total": 2,
+      "notes": "Leaked tool call tokens and provided an empty code template ('# Your code here') instead of actually writing the machine learning code."
+    },
+    {
+      "item": 6,
+      "task_id": "gemini-review-0368",
+      "domain": "code_review",
+      "format": 2,
+      "understanding": 3,
+      "quality": 3,
+      "extra": 1,
+      "total": 9,
+      "notes": "Excellent response. Correctly identified the O(N^2) performance bottleneck with `strlen` in the loop condition and provided the optimized O(N) C code."
+    },
+    {
+      "item": 7,
+      "task_id": "gemini-review-0020",
+      "domain": "code_review",
+      "format": 1,
+      "understanding": 3,
+      "quality": 1,
+      "extra": 0,
+      "total": 5,
+      "notes": "Correctly identified the buffer overflow vulnerability with `strcat`, but leaked tool call tokens and failed to provide the fixed code."
+    },
+    {
+      "item": 8,
+      "task_id": "gemini-review-0222",
+      "domain": "code_review",
+      "format": 2,
+      "understanding": 3,
+      "quality": 3,
+      "extra": 1,
+      "total": 9,
+      "notes": "Great explanation of the stale closure issue in React's `useEffect` and provided the correct functional update fix. Slightly cut off at the very end."
+    },
+    {
+      "item": 9,
+      "task_id": "gemini-review-0247",
+      "domain": "code_review",
+      "format": 2,
+      "understanding": 3,
+      "quality": 2,
+      "extra": 1,
+      "total": 8,
+      "notes": "Excellent explanation of the async race condition and interleaving. However, the provided code fix was cut off before completion."
+    },
+    {
+      "item": 10,
+      "task_id": "gemini-review-0325",
+      "domain": "code_review",
+      "format": 1,
+      "understanding": 3,
+      "quality": 1,
+      "extra": 0,
+      "total": 5,
+      "notes": "Correctly identified that the broad `except Exception:` block swallows errors, but the response was extremely brief and lacked a code example."
+    },
+    {
+      "item": 11,
+      "task_id": "gemini-prd-0429",
+      "domain": "prd",
+      "format": 2,
+      "understanding": 3,
+      "quality": 2,
+      "extra": 1,
+      "total": 8,
+      "notes": "Good decomposition of the task into work streams with clear dependencies. The response was cut off at the end."
+    },
+    {
+      "item": 12,
+      "task_id": "gemini-prd-0047",
+      "domain": "prd",
+      "format": 2,
+      "understanding": 3,
+      "quality": 2,
+      "extra": 1,
+      "total": 8,
+      "notes": "Solid PRD that covers all requested sections (metrics, MVP, risks) with good markdown structure, though slightly concise."
+    },
+    {
+      "item": 13,
+      "task_id": "gemini-prd-0276",
+      "domain": "prd",
+      "format": 2,
+      "understanding": 3,
+      "quality": 1,
+      "extra": 0,
+      "total": 6,
+      "notes": "Met the basic requirements of decomposing into streams with dependencies, but the content was far too brief to be a useful PRD."
+    },
+    {
+      "item": 14,
+      "task_id": "gemini-prd-0070",
+      "domain": "prd",
+      "format": 1,
+      "understanding": 3,
+      "quality": 2,
+      "extra": 1,
+      "total": 7,
+      "notes": "Good technical specification with appropriate migration phases and tech stack choices. However, it leaked a tool call token and was cut off."
+    },
+    {
+      "item": 15,
+      "task_id": "gemini-prd-0440",
+      "domain": "prd",
+      "format": 2,
+      "understanding": 3,
+      "quality": 1,
+      "extra": 0,
+      "total": 6,
+      "notes": "Covered all requested sections, but the response was extremely brief (almost just bullet points) and lacked the depth expected of a PRD."
+    }
+  ],
+  "summary": {
+    "code_avg": "1.6/10",
+    "prd_avg": "7.0/10",
+    "code_review_avg": "7.2/10",
+    "overall_avg": "5.3/10",
+    "strengths": [
+      "Strong understanding of code review concepts, accurately identifying bugs, performance bottlenecks, and race conditions.",
+      "Capable of structuring PRDs with appropriate markdown headers and covering requested criteria."
+    ],
+    "weaknesses": [
+      "Severe issues with code generation, including hallucinations, empty templates, and completely misunderstanding prompts.",
+      "Frequent leaking of `<tool_call>` tokens into the final output.",
+      "High rate of responses being cut off mid-sentence or mid-code block.",
+      "Tendency to provide overly brief or superficial answers in some PRD and code review tasks."
+    ],
+    "recommendation": "The model requires significant improvements in its code generation capabilities and output length management (fixing the cut-off issue). The fine-tuning dataset should be cleaned to remove leaked `<tool_call>` tokens and to encourage more comprehensive, fully fleshed-out code and PRD responses."
+  }
+}
+```
